@@ -20,7 +20,9 @@ export const ChangePasswordScreen: React.FC<Props> = ({ onComplete }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
     if (newPassword.length < 6) {
       setError('Password must be at least 6 characters.');
       return;
@@ -30,8 +32,15 @@ export const ChangePasswordScreen: React.FC<Props> = ({ onComplete }) => {
       return;
     }
 
-    teacherStore.completePasswordChange(newPassword);
-    onComplete();
+    setLoading(true);
+    setError(null);
+    const res = await teacherStore.completePasswordChange(newPassword);
+    setLoading(false);
+    if (res.success) {
+      onComplete();
+    } else {
+      setError(res.error || 'Failed to update password.');
+    }
   };
 
   return (

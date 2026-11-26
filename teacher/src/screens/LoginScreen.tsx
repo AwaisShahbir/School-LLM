@@ -6,7 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  Keyboard
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../theme/colors';
@@ -24,11 +28,24 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
+    Keyboard.dismiss();
     setError(null);
+
+    const cleanCnic = cnic.replace(/\D/g, '');
+    if (cleanCnic.length !== 13) {
+      setError('CNIC must be exactly 13 numeric digits without dashes.');
+      return;
+    }
+
+    if (!password || password.trim().length === 0) {
+      setError('Please enter your password.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await teacherStore.login(cnic, password);
+      const res = await teacherStore.login(cleanCnic, password);
       setLoading(false);
       if (res.success) {
         onLoginSuccess(Boolean(res.mustChangePassword));
@@ -43,85 +60,99 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Background Decor */}
       <View style={styles.topGradient} />
 
-      <View style={styles.content}>
-        {/* Header Branding */}
-        <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <MaterialCommunityIcons name="school" size={32} color="#FFFFFF" />
-          </View>
-          <Text style={styles.title}>Faculty Portal</Text>
-          <Text style={styles.subtitle}>Sign in with your 13-digit National CNIC</Text>
-        </View>
-
-        {error && (
-          <View style={styles.errorBox}>
-            <Feather name="alert-circle" size={16} color="#F27D8D" style={{ marginRight: 6 }} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {/* Card */}
-        <View style={styles.card}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>13-Digit National CNIC</Text>
-            <View style={styles.inputWrapper}>
-              <Feather name="credit-card" size={18} color="#7048E8" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="3520112345671 (no dashes)"
-                placeholderTextColor={THEME.colors.textMuted}
-                keyboardType="number-pad"
-                maxLength={13}
-                value={cnic}
-                onChangeText={setCnic}
-              />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header Branding */}
+          <View style={styles.header}>
+            <View style={styles.logoBadge}>
+              <MaterialCommunityIcons name="school" size={32} color="#FFFFFF" />
             </View>
-            <Text style={styles.hint}>
-              Enter 13 numeric digits without dashes
-            </Text>
+            <Text style={styles.title}>Faculty Portal</Text>
+            <Text style={styles.subtitle}>Sign in with your 13-digit National CNIC</Text>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrapper}>
-              <Feather name="lock" size={18} color="#7048E8" style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••••••"
-                placeholderTextColor={THEME.colors.textMuted}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color="#6B6880" />
-              </TouchableOpacity>
+          {error && (
+            <View style={styles.errorBox}>
+              <Feather name="alert-circle" size={16} color="#F27D8D" style={{ marginRight: 6 }} />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-          </View>
+          )}
 
-          <TouchableOpacity
-            style={styles.loginBtn}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <Text style={styles.loginBtnText}>Sign In to Faculty App</Text>
-                <Feather name="arrow-right" size={16} color="#FFFFFF" />
+          {/* Card */}
+          <View style={styles.card}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>13-Digit National CNIC</Text>
+              <View style={styles.inputWrapper}>
+                <Feather name="credit-card" size={18} color="#7048E8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="3520112345671 (no dashes)"
+                  placeholderTextColor={THEME.colors.textMuted}
+                  keyboardType="number-pad"
+                  maxLength={13}
+                  value={cnic}
+                  onChangeText={setCnic}
+                />
+                {cnic.length > 0 && (
+                  <TouchableOpacity onPress={() => setCnic('')} style={styles.clearBtn}>
+                    <Feather name="x" size={16} color="#6B6880" />
+                  </TouchableOpacity>
+                )}
               </View>
-            )}
-          </TouchableOpacity>
-        </View>
+              <Text style={styles.hint}>
+                Enter 13 numeric digits without dashes
+              </Text>
+            </View>
 
-        <Text style={styles.footerNote}>
-          First-time users will be prompted to set a permanent password.
-        </Text>
-      </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <Feather name="lock" size={18} color="#7048E8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••••••"
+                  placeholderTextColor={THEME.colors.textMuted}
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                  <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color="#6B6880" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.loginBtn}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <Text style={styles.loginBtnText}>Sign In to Faculty App</Text>
+                  <Feather name="arrow-right" size={16} color="#FFFFFF" />
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.footerNote}>
+            First-time users will be prompted to set a permanent password.
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -140,14 +171,16 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.colors.lavender,
     opacity: 0.35,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 36,
+    paddingBottom: 24,
     justifyContent: 'center',
-    padding: 24,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 24,
   },
   logoBadge: {
     width: 60,
@@ -162,11 +195,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 6,
-  },
-  logoText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 18,
   },
   title: {
     fontSize: 24,
@@ -183,7 +211,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: THEME.colors.card,
     borderRadius: THEME.roundness.card,
-    padding: 24,
+    padding: 22,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -197,14 +225,25 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   errorText: {
     color: '#D32F2F',
     fontSize: 12,
     fontWeight: '600',
+    flex: 1,
   },
   inputGroup: {
     marginBottom: 16,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: THEME.colors.textMain,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 6,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -221,19 +260,15 @@ const styles = StyleSheet.create({
   eyeBtn: {
     padding: 6,
   },
-  label: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.textMain,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
+  clearBtn: {
+    padding: 6,
   },
   input: {
     flex: 1,
     paddingVertical: 12,
     fontSize: 14,
     color: THEME.colors.textMain,
+    fontWeight: '600',
   },
   hint: {
     fontSize: 11,
@@ -261,6 +296,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     color: THEME.colors.textMuted,
-    marginTop: 24,
+    marginTop: 20,
   },
 });

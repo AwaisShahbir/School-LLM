@@ -205,7 +205,7 @@ export const Students: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -224,7 +224,7 @@ export const Students: React.FC = () => {
           phone1: String(row.Phone || row['Contact Number'] || '')
         }));
 
-        const res = schoolStore.bulkImportStudents(formatted);
+        const res = await schoolStore.bulkImportStudents(formatted);
         setImportStatus({ count: res.successCount, errors: res.errors });
       } catch (err: any) {
         alert(`Failed to process Excel file: ${err.message}`);

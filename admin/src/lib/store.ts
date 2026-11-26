@@ -128,11 +128,25 @@ class SchoolStore {
   }
 
   // --- SECTIONS ---
-  addSection(grade: number, name: string, classTeacherId: string | null = null) {
+  async addSection(grade: number, name: string, classTeacherId: string | null = null) {
     const exists = this.sections.some(s => s.grade === grade && s.name.toUpperCase() === name.toUpperCase());
     if (exists) {
       throw new Error(`Section Grade ${grade}-${name} already exists.`);
     }
+
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.from('sections').insert({
+        grade,
+        name: name.toUpperCase(),
+        class_teacher_id: classTeacherId || null
+      }).select().single();
+
+      if (error) throw new Error(error.message);
+      this.sections.push(data);
+      this.notify();
+      return data;
+    }
+
     const id = `sec-${Date.now()}`;
     const newSection: Section = {
       id,
@@ -145,15 +159,26 @@ class SchoolStore {
     return newSection;
   }
 
-  updateSection(id: string, updates: Partial<Section>) {
+  async updateSection(id: string, updates: Partial<Section>) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.from('sections').update(updates).eq('id', id).select().single();
+      if (error) throw new Error(error.message);
+      this.sections = this.sections.map(s => s.id === id ? data : s);
+      this.notify();
+      return;
+    }
     this.sections = this.sections.map(s => s.id === id ? { ...s, ...updates } : s);
     this.notify();
   }
 
-  deleteSection(id: string) {
+  async deleteSection(id: string) {
     const hasStudents = this.students.some(s => s.section_id === id && s.status === 'active');
     if (hasStudents) {
       throw new Error("Cannot delete a section with enrolled active students.");
+    }
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.from('sections').delete().eq('id', id);
+      if (error) throw new Error(error.message);
     }
     this.sections = this.sections.filter(s => s.id !== id);
     this.notify();
@@ -254,7 +279,7 @@ class SchoolStore {
   }
 
   // --- STUDENTS ---
-  addStudent(data: Omit<Student, 'id' | 'created_at'>) {
+  async addStudent(data: Omit<Student, 'id' | 'created_at'>) {
     const activeCount = this.students.filter(s => s.status === 'active').length;
     if (activeCount >= 1000) {
       throw new Error(`Student capacity limit reached (Maximum 1,000 active students allowed). Current active: ${activeCount}.`);
@@ -264,6 +289,16 @@ class SchoolStore {
     if (exists) {
       throw new Error(`Roll number ${data.roll_no} already exists in this section.`);
     }
+
+    if (isSupabaseConfigured) {
+      const { data: stu, error } = await supabase.from('students').insert(data).select().single();
+      if (error) throw new Error(error.message);
+      this.students.push(stu);
+      this.addAudit('students', stu.id, 'INSERT', null, stu);
+      this.notify();
+      return stu;
+    }
+
     const id = `stu-${Date.now()}`;
     const newStudent: Student = {
       ...data,
@@ -276,22 +311,38 @@ class SchoolStore {
     return newStudent;
   }
 
-  updateStudent(id: string, updates: Partial<Student>) {
+  async updateStudent(id: string, updates: Partial<Student>) {
     const old = this.students.find(s => s.id === id);
+    if (isSupabaseConfigured) {
+      const { data: stu, error } = await supabase.from('students').update(updates).eq('id', id).select().single();
+      if (error) throw new Error(error.message);
+      this.students = this.students.map(s => s.id === id ? stu : s);
+      this.addAudit('students', id, 'UPDATE', old, updates);
+      this.notify();
+      return;
+    }
     this.students = this.students.map(s => s.id === id ? { ...s, ...updates } : s);
     this.addAudit('students', id, 'UPDATE', old, updates);
     this.notify();
   }
 
-  markStudentLeft(id: string) {
+  async markStudentLeft(id: string) {
     const old = this.students.find(s => s.id === id);
     const updates = { status: 'left' as const, left_date: new Date().toISOString().split('T')[0] };
+    if (isSupabaseConfigured) {
+      const { data: stu, error } = await supabase.from('students').update(updates).eq('id', id).select().single();
+      if (error) throw new Error(error.message);
+      this.students = this.students.map(s => s.id === id ? stu : s);
+      this.addAudit('students', id, 'UPDATE', old, updates);
+      this.notify();
+      return;
+    }
     this.students = this.students.map(s => s.id === id ? { ...s, ...updates } : s);
     this.addAudit('students', id, 'UPDATE', old, updates);
     this.notify();
   }
 
-  bulkImportStudents(imported: Array<{
+  async bulkImportStudents(imported: Array<{
     grade: number;
     section: string;
     roll_no: number;
@@ -307,6 +358,7 @@ class SchoolStore {
     }
     let successCount = 0;
     const errors: string[] = [];
+    const validRowsToInsert: Array<Omit<Student, 'id' | 'created_at'>> = [];
 
     imported.forEach((row, idx) => {
       const section = this.sections.find(sec => sec.grade === row.grade && sec.name.toUpperCase() === row.section.toUpperCase());
@@ -321,9 +373,7 @@ class SchoolStore {
         return;
       }
 
-      const id = `stu-imp-${Date.now()}-${idx}`;
-      const newStu: Student = {
-        id,
+      validRowsToInsert.push({
         section_id: section.id,
         roll_no: Number(row.roll_no),
         full_name: row.full_name,
@@ -335,12 +385,26 @@ class SchoolStore {
         phone2: null,
         admission_date: new Date().toISOString().split('T')[0],
         status: 'active',
-        left_date: null,
-        created_at: new Date().toISOString()
-      };
-      this.students.push(newStu);
-      successCount++;
+        left_date: null
+      });
     });
+
+    if (isSupabaseConfigured && validRowsToInsert.length > 0) {
+      const { data, error } = await supabase.from('students').insert(validRowsToInsert).select();
+      if (error) {
+        errors.push(`Database error: ${error.message}`);
+      } else if (data) {
+        this.students.push(...data);
+        successCount = data.length;
+      }
+    } else {
+      validRowsToInsert.forEach((row, idx) => {
+        const id = `stu-imp-${Date.now()}-${idx}`;
+        const newStu: Student = { ...row, id, created_at: new Date().toISOString() };
+        this.students.push(newStu);
+        successCount++;
+      });
+    }
 
     this.notify();
     return { successCount, errors };
@@ -359,13 +423,15 @@ class SchoolStore {
     });
   }
 
-  saveAttendance(date: string, records: Array<{ student_id: string; status: Attendance['status'] }>) {
+  async saveAttendance(date: string, records: Array<{ student_id: string; status: Attendance['status'] }>) {
+    const toUpsert: Array<any> = [];
     records.forEach(rec => {
       const existingIdx = this.attendance.findIndex(a => a.student_id === rec.student_id && a.date === date);
       if (existingIdx >= 0) {
         const old = this.attendance[existingIdx];
         this.attendance[existingIdx] = { ...old, status: rec.status };
         this.addAudit('attendance', old.id, 'UPDATE', old, this.attendance[existingIdx]);
+        toUpsert.push(this.attendance[existingIdx]);
       } else {
         const newAtt: Attendance = {
           id: `att-${rec.student_id}-${date}`,
@@ -377,13 +443,24 @@ class SchoolStore {
         };
         this.attendance.push(newAtt);
         this.addAudit('attendance', newAtt.id, 'INSERT', null, newAtt);
+        toUpsert.push({
+          student_id: rec.student_id,
+          date,
+          status: rec.status,
+          marked_by: "11111111-1111-1111-1111-111111111111"
+        });
       }
     });
+
+    if (isSupabaseConfigured && toUpsert.length > 0) {
+      await supabase.from('attendance').upsert(toUpsert, { onConflict: 'student_id,date' });
+    }
     this.notify();
   }
 
   // --- MARKS ---
-  saveMarks(examId: string, records: Array<{ student_id: string; obtained: number | null; absent: boolean }>) {
+  async saveMarks(examId: string, records: Array<{ student_id: string; obtained: number | null; absent: boolean }>) {
+    const toUpsert: Array<any> = [];
     records.forEach(rec => {
       const existingIdx = this.marks.findIndex(m => m.exam_id === examId && m.student_id === rec.student_id);
       if (existingIdx >= 0) {
@@ -395,6 +472,7 @@ class SchoolStore {
           updated_at: new Date().toISOString()
         };
         this.addAudit('marks', old.id, 'UPDATE', old, this.marks[existingIdx]);
+        toUpsert.push(this.marks[existingIdx]);
       } else {
         const newMark: Mark = {
           id: `mk-${Date.now()}-${rec.student_id}`,
@@ -407,13 +485,24 @@ class SchoolStore {
         };
         this.marks.push(newMark);
         this.addAudit('marks', newMark.id, 'INSERT', null, newMark);
+        toUpsert.push({
+          exam_id: examId,
+          student_id: rec.student_id,
+          obtained: rec.absent ? null : rec.obtained,
+          absent: rec.absent,
+          updated_by: "11111111-1111-1111-1111-111111111111"
+        });
       }
     });
+
+    if (isSupabaseConfigured && toUpsert.length > 0) {
+      await supabase.from('marks').upsert(toUpsert, { onConflict: 'exam_id,student_id' });
+    }
     this.notify();
   }
 
   // --- FEES ---
-  toggleFeeStatus(studentId: string, month: string) {
+  async toggleFeeStatus(studentId: string, month: string) {
     const existing = this.fees.find(f => f.student_id === studentId && f.month === month);
     if (existing) {
       const nextStatus = existing.status === 'paid' ? 'pending' : 'paid';
@@ -422,6 +511,13 @@ class SchoolStore {
       existing.amount = nextStatus === 'paid' ? this.monthlyFeeAmount : null;
       existing.paid_on = nextStatus === 'paid' ? new Date().toISOString().split('T')[0] : null;
       this.addAudit('fee_payments', existing.id, 'UPDATE', old, existing);
+      if (isSupabaseConfigured) {
+        await supabase.from('fee_payments').update({
+          status: nextStatus,
+          amount: existing.amount,
+          paid_on: existing.paid_on
+        }).eq('id', existing.id);
+      }
     } else {
       const newFee: FeePayment = {
         id: `fee-${studentId}-${month}`,
@@ -435,6 +531,17 @@ class SchoolStore {
       };
       this.fees.push(newFee);
       this.addAudit('fee_payments', newFee.id, 'INSERT', null, newFee);
+      if (isSupabaseConfigured) {
+        const { data } = await supabase.from('fee_payments').insert({
+          student_id: studentId,
+          month,
+          status: 'paid',
+          paid_on: newFee.paid_on,
+          amount: this.monthlyFeeAmount,
+          recorded_by: "11111111-1111-1111-1111-111111111111"
+        }).select().single();
+        if (data) newFee.id = data.id;
+      }
     }
     this.notify();
   }
@@ -485,7 +592,17 @@ class SchoolStore {
   }
 
   // --- EVENTS ---
-  addEvent(event: Omit<Event, 'id' | 'created_at' | 'created_by'>) {
+  async addEvent(event: Omit<Event, 'id' | 'created_at' | 'created_by'>) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.from('events').insert({
+        ...event,
+        created_by: "11111111-1111-1111-1111-111111111111"
+      }).select().single();
+      if (error) throw new Error(error.message);
+      this.events.unshift(data);
+      this.notify();
+      return data;
+    }
     const newEvent: Event = {
       ...event,
       id: `ev-${Date.now()}`,
@@ -494,10 +611,21 @@ class SchoolStore {
     };
     this.events.unshift(newEvent);
     this.notify();
+    return newEvent;
   }
 
   // --- NOTIFICATIONS ---
-  addNotification(notif: Omit<Notification, 'id' | 'created_at' | 'created_by'>) {
+  async addNotification(notif: Omit<Notification, 'id' | 'created_at' | 'created_by'>) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.from('notifications').insert({
+        ...notif,
+        created_by: "11111111-1111-1111-1111-111111111111"
+      }).select().single();
+      if (error) throw new Error(error.message);
+      this.notifications.unshift(data);
+      this.notify();
+      return data;
+    }
     const newNotif: Notification = {
       ...notif,
       id: `notif-${Date.now()}`,
@@ -506,10 +634,21 @@ class SchoolStore {
     };
     this.notifications.unshift(newNotif);
     this.notify();
+    return newNotif;
   }
 
   // --- EXPENSES ---
-  addExpense(exp: Omit<Expense, 'id' | 'created_at' | 'created_by'>) {
+  async addExpense(exp: Omit<Expense, 'id' | 'created_at' | 'created_by'>) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase.from('expenses').insert({
+        ...exp,
+        created_by: "11111111-1111-1111-1111-111111111111"
+      }).select().single();
+      if (error) throw new Error(error.message);
+      this.expenses.unshift(data);
+      this.notify();
+      return data;
+    }
     const newExp: Expense = {
       ...exp,
       id: `exp-${Date.now()}`,
@@ -518,6 +657,7 @@ class SchoolStore {
     };
     this.expenses.unshift(newExp);
     this.notify();
+    return newExp;
   }
 
   // --- SPORTS ---

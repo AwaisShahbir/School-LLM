@@ -1,4 +1,11 @@
-import { isSupabaseConfigured, supabase } from './supabase';
+import {
+  isSupabaseConfigured,
+  supabase,
+  remoteClient,
+  bridgeClient,
+  setActiveClient,
+  activeSupabase
+} from './supabase';
 import type {
   TeacherProfile,
   Section,
@@ -133,58 +140,58 @@ class TeacherStore {
       return { success: false, error: 'Please enter your password.' };
     }
 
-    // Call pure CNIC login RPC in Supabase
-    if (isSupabaseConfigured) {
-      try {
-        const { data, error } = await supabase.rpc('teacher_login', {
+    if (!isSupabaseConfigured) {
+      return { success: false, error: 'Database is not configured.' };
+    }
+
+    try {
+      let { data, error } = await supabase.rpc('teacher_login', {
+        p_cnic: clean,
+        p_password: password
+      });
+
+      // If network failed, toggle between bridge and remote client and retry
+      if (error && (error.message?.includes('Network request failed') || error.message?.includes('fetch failed'))) {
+        const altClient = activeSupabase === bridgeClient ? remoteClient : bridgeClient;
+        const retryRes = await altClient.rpc('teacher_login', {
           p_cnic: clean,
           p_password: password
         });
-
-        if (!error && data) {
-          if (!data.success) {
-            return { success: false, error: data.error || 'Invalid credentials.' };
-          }
-          this.currentTeacher = data.teacher as unknown as TeacherProfile;
-          await this.loadFromSupabase();
-          this.notify();
-          return {
-            success: true,
-            mustChangePassword: Boolean(data.must_change_password)
-          };
-        } else if (error) {
-          console.warn('Teacher RPC login fallback attempt:', error.message);
+        if (!retryRes.error) {
+          setActiveClient(altClient === bridgeClient);
+          data = retryRes.data;
+          error = null;
+        } else {
+          error = retryRes.error;
         }
-      } catch (err) {
-        console.warn('Teacher login remote check failed:', err);
       }
-    }
 
-    // Dynamic session profile for faculty
-    this.currentTeacher = {
-      id: `teach-${clean}`,
-      role: 'teacher',
-      full_name: `Faculty Member (${clean.slice(-4)})`,
-      cnic: clean,
-      phone: null,
-      email: null,
-      address: null,
-      qualification: 'B.Ed / Masters',
-      photo_path: null,
-      subject: 'General Faculty',
-      joining_date: new Date().toISOString().split('T')[0],
-      resignation_date: null,
-      active: true,
-      must_change_password: false,
-      created_at: new Date().toISOString()
-    };
+      if (error) {
+        console.error('Teacher RPC login error:', error.message);
+        return { success: false, error: error.message || 'Login request failed.' };
+      }
 
-    if (isSupabaseConfigured) {
+      if (!data) {
+        return { success: false, error: 'No response from authentication server.' };
+      }
+
+      if (!data.success) {
+        return { success: false, error: data.error || 'Invalid credentials.' };
+      }
+
+      // Valid registered teacher authenticated by Supabase
+      this.currentTeacher = data.teacher as unknown as TeacherProfile;
       await this.loadFromSupabase();
-    }
+      this.notify();
 
-    this.notify();
-    return { success: true, mustChangePassword: false };
+      return {
+        success: true,
+        mustChangePassword: Boolean(data.must_change_password)
+      };
+    } catch (err: any) {
+      console.error('Teacher login exception:', err);
+      return { success: false, error: err.message || 'Connection error. Please try again.' };
+    }
   }
 
   async completePasswordChange(newPassword: string): Promise<{ success: boolean; error?: string }> {
