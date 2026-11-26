@@ -4,23 +4,12 @@
     "slug": "school-teacher-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#7048E8"
-    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#7048E8"
-      },
       "package": "com.school.teacherapp"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     }
   }
 }
