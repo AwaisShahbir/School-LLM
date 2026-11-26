@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   StatusBar
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { THEME } from './src/theme/colors';
 import { teacherStore } from './src/lib/teacherStore';
 
@@ -132,7 +133,7 @@ export default function App() {
           style={[styles.tabItem, activeTab === 'Home' && styles.tabItemActive]}
           onPress={() => setActiveTab('Home')}
         >
-          <Text style={styles.tabEmoji}>🏠</Text>
+          <Feather name="home" size={20} color={activeTab === 'Home' ? '#7048E8' : '#6B6880'} />
           <Text style={[styles.tabLabel, activeTab === 'Home' && styles.tabLabelActive]}>Home</Text>
         </TouchableOpacity>
 
@@ -140,7 +141,7 @@ export default function App() {
           style={[styles.tabItem, activeTab === 'Classes' && styles.tabItemActive]}
           onPress={() => setActiveTab('Classes')}
         >
-          <Text style={styles.tabEmoji}>👥</Text>
+          <Feather name="users" size={20} color={activeTab === 'Classes' ? '#7048E8' : '#6B6880'} />
           <Text style={[styles.tabLabel, activeTab === 'Classes' && styles.tabLabelActive]}>Classes</Text>
         </TouchableOpacity>
 
@@ -148,7 +149,7 @@ export default function App() {
           style={[styles.tabItem, activeTab === 'Calendar' && styles.tabItemActive]}
           onPress={() => setActiveTab('Calendar')}
         >
-          <Text style={styles.tabEmoji}>📅</Text>
+          <Feather name="calendar" size={20} color={activeTab === 'Calendar' ? '#7048E8' : '#6B6880'} />
           <Text style={[styles.tabLabel, activeTab === 'Calendar' && styles.tabLabelActive]}>Calendar</Text>
         </TouchableOpacity>
 
@@ -156,8 +157,8 @@ export default function App() {
           style={[styles.tabItem, activeTab === 'Notices' && styles.tabItemActive]}
           onPress={() => setActiveTab('Notices')}
         >
-          <View>
-            <Text style={styles.tabEmoji}>🔔</Text>
+          <View style={{ position: 'relative' }}>
+            <Feather name="bell" size={20} color={activeTab === 'Notices' ? '#7048E8' : '#6B6880'} />
             {teacherStore.unreadNotificationCount > 0 && (
               <View style={styles.tabDot} />
             )}
@@ -169,7 +170,7 @@ export default function App() {
           style={[styles.tabItem, activeTab === 'Profile' && styles.tabItemActive]}
           onPress={() => setActiveTab('Profile')}
         >
-          <Text style={styles.tabEmoji}>👤</Text>
+          <Feather name="user" size={20} color={activeTab === 'Profile' ? '#7048E8' : '#6B6880'} />
           <Text style={[styles.tabLabel, activeTab === 'Profile' && styles.tabLabelActive]}>Profile</Text>
         </TouchableOpacity>
       </View>

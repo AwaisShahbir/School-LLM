@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Alert
 } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../theme/colors';
 import { teacherStore } from '../lib/teacherStore';
 import type { Exam } from '../types/database';
@@ -36,6 +37,12 @@ export const MarksScreen: React.FC<Props> = ({ onBack }) => {
     return teacherStore.subscribe(() => setTick(t => t + 1));
   }, []);
 
+  useEffect(() => {
+    if (exams.length > 0 && (!selectedExamId || !exams.some(e => e.id === selectedExamId))) {
+      setSelectedExamId(exams[0].id);
+    }
+  }, [exams.length]);
+
   const activeExam = teacherStore.exams.find(e => e.id === selectedExamId) || teacherStore.exams[0];
   const students = activeExam
     ? teacherStore.students.filter(s => s.section_id === activeExam.section_id && s.status === 'active')
@@ -47,13 +54,13 @@ export const MarksScreen: React.FC<Props> = ({ onBack }) => {
     students.forEach(s => {
       const existing = teacherStore.marks.find(m => m.exam_id === activeExam.id && m.student_id === s.id);
       map[s.id] = {
-        obtained: existing ? existing.obtained : 35,
+        obtained: existing ? existing.obtained : null,
         absent: existing ? existing.absent : false
       };
     });
     setMarksMap(map);
     setSavedNote(null);
-  }, [selectedExamId]);
+  }, [selectedExamId, activeExam?.id]);
 
   const handleScoreChange = (studentId: string, text: string) => {
     const num = text === '' ? null : Number(text);
@@ -74,7 +81,7 @@ export const MarksScreen: React.FC<Props> = ({ onBack }) => {
       return {
         ...prev,
         [studentId]: {
-          obtained: cur.absent ? 35 : null,
+          obtained: null,
           absent: !cur.absent
         }
       };
@@ -99,16 +106,22 @@ export const MarksScreen: React.FC<Props> = ({ onBack }) => {
       return;
     }
     const mySec = teacherStore.sections.find(s => s.class_teacher_id === teacher?.id) || teacherStore.sections[0];
-    const newEx = teacherStore.createExam(
+    if (!mySec) {
+      Alert.alert("No Section", "You need at least one class section configured to create an assessment.");
+      return;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    teacherStore.createExam(
       examTitle.trim(),
       examType,
       Number(totalMarks) || 50,
-      '2026-11-26',
+      today,
       mySec.id
-    );
-    setSelectedExamId(newEx.id);
-    setShowCreateModal(false);
-    setExamTitle('');
+    ).then(newEx => {
+      setSelectedExamId(newEx.id);
+      setShowCreateModal(false);
+      setExamTitle('');
+    });
   };
 
   // Calculations
@@ -120,122 +133,177 @@ export const MarksScreen: React.FC<Props> = ({ onBack }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <Text style={styles.backBtnText}>←</Text>
+          <Feather name="arrow-left" size={20} color="#1F1B2E" />
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
           <Text style={styles.headerTitle}>Marks & Assessment</Text>
-          <Text style={styles.headerSub}>Subject: {teacher?.subject || 'Mathematics'}</Text>
+          <Text style={styles.headerSub}>Subject: {teacher?.subject || 'Faculty Specialist'}</Text>
         </View>
         <TouchableOpacity
           style={styles.newExamBtn}
           onPress={() => setShowCreateModal(true)}
         >
-          <Text style={styles.newExamText}>+ New Exam</Text>
+          <Feather name="plus" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+          <Text style={styles.newExamText}>New Exam</Text>
         </TouchableOpacity>
       </View>
 
       {/* Exam Selector */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.examScroll}>
-        {exams.map(ex => {
-          const isSelected = ex.id === activeExam?.id;
-          return (
-            <TouchableOpacity
-              key={ex.id}
-              style={[styles.examPill, isSelected && styles.examPillActive]}
-              onPress={() => setSelectedExamId(ex.id)}
-            >
-              <Text style={[styles.examPillText, isSelected && styles.examPillTextActive]}>
-                {ex.title} ({ex.type})
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* KPI Stats */}
-      <View style={styles.kpiRow}>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>Total Marks</Text>
-          <Text style={styles.kpiVal}>{activeExam?.total_marks || 50}</Text>
-        </View>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>Running Average</Text>
-          <Text style={[styles.kpiVal, { color: THEME.colors.primary }]}>{avg} / {activeExam?.total_marks || 50}</Text>
-        </View>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>Students Tested</Text>
-          <Text style={styles.kpiVal}>{scored.length} / {students.length}</Text>
-        </View>
-      </View>
-
-      {savedNote && (
-        <View style={styles.feedbackBox}>
-          <Text style={styles.feedbackText}>✓ {savedNote}</Text>
-        </View>
+      {exams.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.examScroll} contentContainerStyle={{ paddingHorizontal: 16 }}>
+          {exams.map(ex => {
+            const isSelected = ex.id === activeExam?.id;
+            return (
+              <TouchableOpacity
+                key={ex.id}
+                style={[styles.examPill, isSelected && styles.examPillActive]}
+                onPress={() => setSelectedExamId(ex.id)}
+              >
+                <Feather
+                  name="award"
+                  size={12}
+                  color={isSelected ? '#FFFFFF' : '#7048E8'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.examPillText, isSelected && styles.examPillTextActive]}>
+                  {ex.title} ({ex.type})
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       )}
 
-      {/* Student Marks List */}
-      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-        {students.map(stu => {
-          const m = marksMap[stu.id] || { obtained: null, absent: false };
-          return (
-            <View key={stu.id} style={styles.studentCard}>
-              <View style={styles.studentLeft}>
-                <View style={styles.rollBadge}>
-                  <Text style={styles.rollText}>{stu.roll_no}</Text>
-                </View>
-                <View style={styles.nameBlock}>
-                  <Text style={styles.studentName}>{stu.full_name}</Text>
-                  <Text style={styles.fatherName}>{stu.father_name || 'Guardian'}</Text>
-                </View>
-              </View>
-
-              <View style={styles.marksInputBlock}>
-                {m.absent ? (
-                  <View style={styles.absentPill}>
-                    <Text style={styles.absentText}>ABSENT</Text>
-                  </View>
-                ) : (
-                  <TextInput
-                    style={styles.scoreInput}
-                    keyboardType="number-pad"
-                    value={m.obtained !== null ? String(m.obtained) : ''}
-                    onChangeText={(txt) => handleScoreChange(stu.id, txt)}
-                  />
-                )}
-
-                <TouchableOpacity
-                  style={[styles.absBtn, m.absent && styles.absBtnActive]}
-                  onPress={() => handleToggleAbsent(stu.id)}
-                >
-                  <Text style={[styles.absBtnText, m.absent && styles.absBtnTextActive]}>
-                    {m.absent ? 'Unmark' : 'Abs'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+      {/* Empty State if No Exams */}
+      {exams.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconBox}>
+            <Feather name="award" size={48} color="#C9B6FA" />
+          </View>
+          <Text style={styles.emptyTitle}>No Assessments Created</Text>
+          <Text style={styles.emptySubtitle}>
+            Create your first weekly test, monthly exam, or term examination to record and evaluate student marks.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyCreateBtn}
+            onPress={() => setShowCreateModal(true)}
+          >
+            <Feather name="plus" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.emptyCreateBtnText}>Create Assessment</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          {/* KPI Stats */}
+          <View style={styles.kpiRow}>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>Total Marks</Text>
+              <Text style={styles.kpiVal}>{activeExam?.total_marks || 50}</Text>
             </View>
-          );
-        })}
-      </ScrollView>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>Average Score</Text>
+              <Text style={[styles.kpiVal, { color: THEME.colors.primary }]}>
+                {scored.length > 0 ? `${avg} / ${activeExam?.total_marks || 50}` : '—'}
+              </Text>
+            </View>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>Tested</Text>
+              <Text style={styles.kpiVal}>{scored.length} / {students.length}</Text>
+            </View>
+          </View>
 
-      {/* Sticky Save Bar */}
-      <View style={styles.saveBar}>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSaveMarks}>
-          <Text style={styles.saveBtnText}>Save Assessment Marks</Text>
-        </TouchableOpacity>
-      </View>
+          {savedNote && (
+            <View style={styles.feedbackBox}>
+              <Feather name="check-circle" size={16} color="#2FA36B" style={{ marginRight: 6 }} />
+              <Text style={styles.feedbackText}>{savedNote}</Text>
+            </View>
+          )}
+
+          {/* Student Marks List */}
+          {students.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Feather name="users" size={40} color="#C9B6FA" />
+              <Text style={styles.emptyTitle}>No Students in Section</Text>
+              <Text style={styles.emptySubtitle}>
+                Add students to this section in the Admin Portal to record their examination marks.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+              {students.map(stu => {
+                const m = marksMap[stu.id] || { obtained: null, absent: false };
+                return (
+                  <View key={stu.id} style={styles.studentCard}>
+                    <View style={styles.studentLeft}>
+                      <View style={styles.rollBadge}>
+                        <Text style={styles.rollText}>R{stu.roll_no}</Text>
+                      </View>
+                      <View style={styles.nameBlock}>
+                        <Text style={styles.studentName}>{stu.full_name}</Text>
+                        <Text style={styles.fatherName}>{stu.father_name || 'Guardian'}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.marksInputBlock}>
+                      {m.absent ? (
+                        <View style={styles.absentPill}>
+                          <Text style={styles.absentText}>ABSENT</Text>
+                        </View>
+                      ) : (
+                        <TextInput
+                          style={styles.scoreInput}
+                          keyboardType="number-pad"
+                          placeholder="—"
+                          placeholderTextColor={THEME.colors.textMuted}
+                          value={m.obtained !== null ? String(m.obtained) : ''}
+                          onChangeText={(txt) => handleScoreChange(stu.id, txt)}
+                        />
+                      )}
+
+                      <TouchableOpacity
+                        style={[styles.absBtn, m.absent && styles.absBtnActive]}
+                        onPress={() => handleToggleAbsent(stu.id)}
+                      >
+                        <Text style={[styles.absBtnText, m.absent && styles.absBtnTextActive]}>
+                          {m.absent ? 'Unmark' : 'Abs'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {/* Sticky Save Bar */}
+          {students.length > 0 && (
+            <View style={styles.saveBar}>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveMarks}>
+                <Feather name="check" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.saveBtnText}>Save Assessment Marks</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </>
+      )}
 
       {/* Create Exam Modal */}
       {showCreateModal && (
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Create Assessment</Text>
-            <Text style={styles.modalSub}>Subject: {teacher?.subject || 'Mathematics'}</Text>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Create Assessment</Text>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.modalCloseBtn}>
+                <Feather name="x" size={20} color="#1F1B2E" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSub}>Subject: {teacher?.subject || 'Faculty Specialist'}</Text>
 
             <Text style={styles.mLabel}>Exam Title</Text>
             <TextInput
               style={styles.mInput}
-              placeholder="e.g. November Monthly Test"
+              placeholder="e.g. Unit 1 Class Test"
+              placeholderTextColor={THEME.colors.textMuted}
               value={examTitle}
               onChangeText={setExamTitle}
             />
@@ -307,11 +375,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: THEME.colors.textMain,
-  },
   headerTitleBox: {
     flex: 1,
     marginLeft: 12,
@@ -326,6 +389,8 @@ const styles = StyleSheet.create({
     color: THEME.colors.textMuted,
   },
   newExamBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: THEME.colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -337,26 +402,29 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   examScroll: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
     backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F4F3F8',
-    maxHeight: 52,
   },
   examPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: THEME.roundness.pill,
     backgroundColor: THEME.colors.pageBg,
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   examPillActive: {
     backgroundColor: THEME.colors.primary,
+    borderColor: THEME.colors.primary,
   },
   examPillText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
     color: THEME.colors.textMuted,
   },
   examPillTextActive: {
@@ -364,67 +432,59 @@ const styles = StyleSheet.create({
   },
   kpiRow: {
     flexDirection: 'row',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
   },
   kpiCard: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 3,
-    paddingVertical: 10,
     borderRadius: 16,
+    padding: 12,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   kpiLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: THEME.colors.textMuted,
+    textTransform: 'uppercase',
   },
   kpiVal: {
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: '800',
     color: THEME.colors.textMain,
     marginTop: 2,
   },
   feedbackBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: 16,
-    padding: 10,
+    marginBottom: 8,
+    backgroundColor: '#E8F5E9',
     borderRadius: 12,
-    backgroundColor: '#E6F4EA',
-    borderWidth: 1,
-    borderColor: '#2FA36B',
+    padding: 10,
   },
   feedbackText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#2FA36B',
-    textAlign: 'center',
   },
   listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 90,
+    padding: 16,
+    paddingBottom: 80,
   },
   studentCard: {
-    backgroundColor: THEME.colors.card,
+    backgroundColor: '#FFFFFF',
     borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    padding: 14,
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   studentLeft: {
     flexDirection: 'row',
@@ -432,16 +492,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rollBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: THEME.colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
   rollText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     color: THEME.colors.primary,
   },
@@ -454,49 +514,49 @@ const styles = StyleSheet.create({
     color: THEME.colors.textMain,
   },
   fatherName: {
-    fontSize: 10,
+    fontSize: 11,
     color: THEME.colors.textMuted,
-    marginTop: 1,
   },
   marksInputBlock: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   scoreInput: {
-    width: 60,
+    width: 48,
+    height: 36,
     backgroundColor: THEME.colors.pageBg,
-    borderRadius: 12,
+    borderRadius: 10,
     textAlign: 'center',
-    paddingVertical: 6,
     fontSize: 14,
     fontWeight: '800',
     color: THEME.colors.textMain,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   absentPill: {
-    width: 60,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     backgroundColor: '#FDE8EA',
-    borderRadius: 12,
-    paddingVertical: 7,
-    alignItems: 'center',
+    borderRadius: 10,
   },
   absentText: {
-    color: THEME.colors.absent,
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: '800',
+    color: '#F27D8D',
   },
   absBtn: {
-    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     backgroundColor: THEME.colors.pageBg,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: THEME.roundness.pill,
+    borderRadius: 10,
   },
   absBtnActive: {
-    backgroundColor: THEME.colors.absent,
+    backgroundColor: '#F27D8D',
   },
   absBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     color: THEME.colors.textMuted,
   },
   absBtnTextActive: {
@@ -508,25 +568,70 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#E9E6F2',
   },
   saveBtn: {
-    backgroundColor: THEME.colors.primary,
-    borderRadius: THEME.roundness.pill,
-    paddingVertical: 14,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: THEME.colors.primary,
+    paddingVertical: 14,
+    borderRadius: THEME.roundness.pill,
   },
   saveBtnText: {
     color: '#FFFFFF',
+    fontWeight: '800',
     fontSize: 14,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyIconBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#EEE9FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: THEME.colors.textMain,
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  emptyCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: THEME.roundness.pill,
+  },
+  emptyCreateBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '800',
   },
   modalBackdrop: {
     position: 'absolute',
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     padding: 24,
@@ -534,43 +639,54 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 24,
+    padding: 20,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: THEME.colors.textMain,
   },
+  modalCloseBtn: {
+    padding: 4,
+  },
   modalSub: {
     fontSize: 12,
     color: THEME.colors.textMuted,
-    marginBottom: 16,
+    marginTop: 2,
+    marginBottom: 12,
   },
   mLabel: {
     fontSize: 11,
     fontWeight: '700',
     color: THEME.colors.textMain,
     textTransform: 'uppercase',
-    marginBottom: 6,
-    marginTop: 10,
+    marginTop: 8,
+    marginBottom: 4,
   },
   mInput: {
     backgroundColor: THEME.colors.pageBg,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 13,
     color: THEME.colors.textMain,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   typeRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 6,
+    marginVertical: 4,
   },
   typePill: {
     flex: 1,
-    marginHorizontal: 2,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
     backgroundColor: THEME.colors.pageBg,
     alignItems: 'center',
   },
@@ -578,7 +694,7 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.colors.primary,
   },
   typePillText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
     color: THEME.colors.textMuted,
   },
@@ -588,10 +704,11 @@ const styles = StyleSheet.create({
   mBtnRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 20,
+    marginTop: 16,
+    gap: 8,
   },
   mCancelBtn: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 10,
   },
   mCancelText: {

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { THEME } from '../theme/colors';
 import { teacherStore } from '../lib/teacherStore';
 
@@ -35,7 +36,7 @@ const PERIOD_TIMES = [
 
 export const TimetableScreen: React.FC<Props> = ({ onBack }) => {
   const [, setTick] = useState(0);
-  const [selectedDay, setSelectedDay] = useState<number>(1);
+  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDay() || 1);
 
   useEffect(() => {
     return teacherStore.subscribe(() => setTick(t => t + 1));
@@ -51,7 +52,7 @@ export const TimetableScreen: React.FC<Props> = ({ onBack }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <Text style={styles.backBtnText}>←</Text>
+          <Feather name="arrow-left" size={20} color="#1F1B2E" />
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
           <Text style={styles.headerTitle}>Faculty Timetable</Text>
@@ -77,40 +78,60 @@ export const TimetableScreen: React.FC<Props> = ({ onBack }) => {
         })}
       </View>
 
-      {/* Periods List for selected day */}
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {[1, 2, 3, 4, 5, 6, 7].map(periodNo => {
-          const entry = dayEntries.find(e => e.period_no === periodNo);
-          const sec = entry ? teacherStore.sections.find(s => s.id === entry.section_id) : null;
-          const isTeaching = Boolean(entry);
+      {/* Periods List */}
+      {teacherStore.timetableEntries.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconBox}>
+            <Feather name="calendar" size={48} color="#C9B6FA" />
+          </View>
+          <Text style={styles.emptyTitle}>No Timetable Published</Text>
+          <Text style={styles.emptySubtitle}>
+            Your teaching periods and daily schedules will appear here once built and approved by the school administrator in the Admin Portal.
+          </Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {[1, 2, 3, 4, 5, 6, 7].map(periodNo => {
+            const entry = dayEntries.find(e => e.period_no === periodNo);
+            const sec = entry ? teacherStore.sections.find(s => s.id === entry.section_id) : null;
+            const isTeaching = Boolean(entry);
 
-          return (
-            <View key={periodNo} style={[styles.periodCard, isTeaching && styles.periodCardActive]}>
-              <View style={styles.periodTimeBox}>
-                <Text style={styles.periodNoText}>Period {periodNo}</Text>
-                <Text style={styles.periodTimeText}>{PERIOD_TIMES[periodNo - 1]}</Text>
-              </View>
+            return (
+              <View key={periodNo} style={[styles.periodCard, isTeaching && styles.periodCardActive]}>
+                <View style={styles.periodTimeBox}>
+                  <Text style={styles.periodNoText}>Period {periodNo}</Text>
+                  <Text style={styles.periodTimeText}>{PERIOD_TIMES[periodNo - 1]}</Text>
+                </View>
 
-              <View style={styles.periodDetails}>
-                {isTeaching ? (
-                  <>
-                    <Text style={styles.subjectText}>{entry?.subject}</Text>
-                    <Text style={styles.classText}>Class {sec?.grade}-{sec?.name} • Room {sec?.grade}0{sec?.name}</Text>
-                  </>
-                ) : (
-                  <Text style={styles.freeText}>Free Period / Preparation</Text>
+                <View style={styles.periodDetails}>
+                  {isTeaching ? (
+                    <>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Feather name="book-open" size={14} color="#7048E8" />
+                        <Text style={styles.subjectText}>{entry?.subject}</Text>
+                      </View>
+                      <Text style={styles.classText}>
+                        Class {sec ? `${sec.grade}-${sec.name}` : 'Assigned Class'}
+                      </Text>
+                    </>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Feather name="coffee" size={14} color="#6B6880" />
+                      <Text style={styles.freeText}>Free Period / Preparation</Text>
+                    </View>
+                  )}
+                </View>
+
+                {isTeaching && (
+                  <View style={styles.activeTag}>
+                    <Text style={styles.activeTagText}>Class</Text>
+                  </View>
                 )}
               </View>
-
-              {isTeaching && (
-                <View style={styles.activeTag}>
-                  <Text style={styles.activeTagText}>Class</Text>
-                </View>
-              )}
-            </View>
-          );
-        })}
-      </ScrollView>
+            );
+          })}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -136,11 +157,6 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.colors.pageBg,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  backBtnText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: THEME.colors.textMain,
   },
   headerTitleBox: {
     marginLeft: 12,
@@ -229,7 +245,6 @@ const styles = StyleSheet.create({
   },
   freeText: {
     fontSize: 12,
-    fontStyle: 'italic',
     color: THEME.colors.textMuted,
   },
   activeTag: {
@@ -242,5 +257,32 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: THEME.colors.primary,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyIconBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#EEE9FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: THEME.colors.textMain,
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

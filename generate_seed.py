@@ -131,9 +131,23 @@ sql.append("  (7, '12:45:00', '01:30:00')")
 sql.append("on conflict (period_no) do update set start_time = excluded.start_time, end_time = excluded.end_time;")
 sql.append("")
 
-# 2. Admin & Teacher Profiles
-sql.append("-- 2. Profiles (Admin & Teachers)")
-# Admin
+# 2. Admin & Teacher Auth Users & Profiles
+sql.append("-- 2. Auth Users (Admin & Teachers)")
+sql.append("create extension if not exists pgcrypto with schema extensions;")
+sql.append("insert into auth.users (")
+sql.append("  id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at")
+sql.append(") values")
+sql.append(f"  ('{ADMIN_ID}', 'authenticated', 'authenticated', 'admin@school.edu.pk', extensions.crypt('Admin#1234', extensions.gen_salt('bf')), now(), '{{\"provider\":\"email\",\"providers\":[\"email\"]}}', '{{\"role\":\"admin\",\"full_name\":\"Principal / Headmaster Office\"}}', now(), now()),")
+for i, t in enumerate(TEACHERS):
+    comma = "," if i < len(TEACHERS) - 1 else ""
+    pw = f"Teach#{t['cnic'][-4:]}"
+    synthetic_email = f"{t['cnic']}@teachers.school.app"
+    sql.append(f"  ('{t['id']}', 'authenticated', 'authenticated', '{synthetic_email}', extensions.crypt('{pw}', extensions.gen_salt('bf')), now(), '{{\"provider\":\"email\",\"providers\":[\"email\"]}}', '{{\"role\":\"teacher\",\"full_name\":\"{t['name']}\"}}', now(), now()){comma}")
+sql.append("on conflict (id) do nothing;")
+sql.append("")
+
+# Admin Profile
+sql.append("-- Profiles")
 sql.append(f"insert into public.profiles (id, role, full_name, email, phone, must_change_password) values")
 sql.append(f"  ('{ADMIN_ID}', 'admin', 'Principal / Headmaster Office', 'admin@school.edu.pk', '03000000000', false)")
 sql.append("on conflict (id) do nothing;")

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { THEME } from '../theme/colors';
 import { teacherStore } from '../lib/teacherStore';
 
@@ -28,7 +29,7 @@ export const NoticesScreen: React.FC<Props> = ({ onBack }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <Text style={styles.backBtnText}>←</Text>
+          <Feather name="arrow-left" size={20} color="#1F1B2E" />
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
           <Text style={styles.headerTitle}>Faculty Notices</Text>
@@ -36,20 +37,32 @@ export const NoticesScreen: React.FC<Props> = ({ onBack }) => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {teacherStore.notifications.map(n => (
-          <View key={n.id} style={styles.card}>
-            <View style={styles.bellIconBox}>
-              <Text style={{ fontSize: 18 }}>🔔</Text>
-            </View>
-            <View style={styles.cardRight}>
-              <Text style={styles.noticeTitle}>{n.title}</Text>
-              <Text style={styles.noticeBody}>{n.body}</Text>
-              <Text style={styles.noticeDate}>Delivered to Faculty • Active Notice</Text>
-            </View>
+      {teacherStore.notifications.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconBox}>
+            <Feather name="bell-off" size={48} color="#C9B6FA" />
           </View>
-        ))}
-      </ScrollView>
+          <Text style={styles.emptyTitle}>No Faculty Notices</Text>
+          <Text style={styles.emptySubtitle}>
+            Administrative announcements and official broadcasts dispatched to faculty will appear here.
+          </Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {teacherStore.notifications.map(n => (
+            <View key={n.id} style={styles.card}>
+              <View style={styles.bellIconBox}>
+                <Feather name="bell" size={20} color="#7048E8" />
+              </View>
+              <View style={styles.cardRight}>
+                <Text style={styles.noticeTitle}>{n.title}</Text>
+                <Text style={styles.noticeBody}>{n.body}</Text>
+                <Text style={styles.noticeDate}>Delivered to Faculty • Active Notice</Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -76,11 +89,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: THEME.colors.textMain,
-  },
   headerTitleBox: {
     marginLeft: 12,
   },
@@ -104,11 +112,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   bellIconBox: {
     width: 40,
@@ -138,5 +143,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: THEME.colors.primary,
     marginTop: 8,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyIconBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#EEE9FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: THEME.colors.textMain,
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

@@ -13,7 +13,23 @@ insert into public.period_config (period_no, start_time, end_time) values
   (7, '12:45:00', '01:30:00')
 on conflict (period_no) do update set start_time = excluded.start_time, end_time = excluded.end_time;
 
--- 2. Profiles (Admin & Teachers)
+-- 2. Auth Users (Admin & Teachers)
+create extension if not exists pgcrypto with schema extensions;
+insert into auth.users (
+  id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values
+  ('11111111-1111-1111-1111-111111111111', 'authenticated', 'authenticated', 'admin@school.edu.pk', extensions.crypt('Admin#1234', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"admin","full_name":"Principal / Headmaster Office"}', now(), now()),
+  ('22222222-2222-2222-2222-222222222001', 'authenticated', 'authenticated', '3520112345671@teachers.school.app', extensions.crypt('Teach#5671', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"teacher","full_name":"Muhammad Ahmed"}', now(), now()),
+  ('22222222-2222-2222-2222-222222222002', 'authenticated', 'authenticated', '3520112345672@teachers.school.app', extensions.crypt('Teach#5672', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"teacher","full_name":"Tariq Mahmood"}', now(), now()),
+  ('22222222-2222-2222-2222-222222222003', 'authenticated', 'authenticated', '3520112345673@teachers.school.app', extensions.crypt('Teach#5673', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"teacher","full_name":"Ayesha Siddiqui"}', now(), now()),
+  ('22222222-2222-2222-2222-222222222004', 'authenticated', 'authenticated', '3520112345674@teachers.school.app', extensions.crypt('Teach#5674', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"teacher","full_name":"Zubair Khan"}', now(), now()),
+  ('22222222-2222-2222-2222-222222222005', 'authenticated', 'authenticated', '3520112345675@teachers.school.app', extensions.crypt('Teach#5675', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"teacher","full_name":"Fatima Noor"}', now(), now()),
+  ('22222222-2222-2222-2222-222222222006', 'authenticated', 'authenticated', '3520112345676@teachers.school.app', extensions.crypt('Teach#5676', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"teacher","full_name":"Hafiz Usman"}', now(), now()),
+  ('22222222-2222-2222-2222-222222222007', 'authenticated', 'authenticated', '3520112345677@teachers.school.app', extensions.crypt('Teach#5677', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"teacher","full_name":"Bilal Asghar"}', now(), now()),
+  ('22222222-2222-2222-2222-222222222008', 'authenticated', 'authenticated', '3520112345678@teachers.school.app', extensions.crypt('Teach#5678', extensions.gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"role":"teacher","full_name":"Sana Rasheed"}', now(), now())
+on conflict (id) do nothing;
+
+-- Profiles
 insert into public.profiles (id, role, full_name, email, phone, must_change_password) values
   ('11111111-1111-1111-1111-111111111111', 'admin', 'Principal / Headmaster Office', 'admin@school.edu.pk', '03000000000', false)
 on conflict (id) do nothing;

@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Alert
 } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../theme/colors';
 import { teacherStore } from '../lib/teacherStore';
 
@@ -35,17 +36,28 @@ export const SportsScreen: React.FC<Props> = ({ onBack }) => {
       Alert.alert("Required", "Enter roll number.");
       return;
     }
+    if (!slot) {
+      Alert.alert("No Sports Slot", "No sports tournaments or slots have been configured by the administrator.");
+      return;
+    }
     const mySec = teacherStore.sections.find(s => s.class_teacher_id === teacherStore.currentTeacher?.id) || teacherStore.sections[0];
-    const stu = teacherStore.students.find(s => s.section_id === mySec.id && s.roll_no === Number(studentRoll));
+    const stu = mySec 
+      ? teacherStore.students.find(s => s.section_id === mySec.id && s.roll_no === Number(studentRoll))
+      : teacherStore.students.find(s => s.roll_no === Number(studentRoll));
+
     if (!stu) {
-      Alert.alert("Not Found", `Student #${studentRoll} not in section.`);
+      Alert.alert("Not Found", `Student with Roll #${studentRoll} was not found in your section.`);
       return;
     }
 
-    teacherStore.registerSport(slot.id, stu.id, roleDetails || 'Squad player');
-    setShowRegModal(false);
-    setStudentRoll('');
-    setRoleDetails('');
+    try {
+      teacherStore.registerSport(slot.id, stu.id, roleDetails.trim() || 'Squad player');
+      setShowRegModal(false);
+      setStudentRoll('');
+      setRoleDetails('');
+    } catch (err: any) {
+      Alert.alert("Notice", err.message || "Failed to register student.");
+    }
   };
 
   return (
@@ -53,56 +65,84 @@ export const SportsScreen: React.FC<Props> = ({ onBack }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <Text style={styles.backBtnText}>←</Text>
+          <Feather name="arrow-left" size={20} color="#1F1B2E" />
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
           <Text style={styles.headerTitle}>Sports Registration</Text>
           <Text style={styles.headerSub}>Team Squads & Player Roster</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowRegModal(true)}>
-          <Text style={styles.addBtnText}>+ Register</Text>
+          <Feather name="user-plus" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+          <Text style={styles.addBtnText}>Register</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Slot card */}
         <View style={styles.slotCard}>
-          <Text style={styles.slotPre}>Cricket Tournament</Text>
-          <Text style={styles.slotTitle}>{slot?.label || 'Junior Squad'}</Text>
-          <Text style={styles.slotCap}>Capacity: {registrations.length} / {slot?.capacity || 22} Registered</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View>
+              <Text style={styles.slotPre}>School Sports Department</Text>
+              <Text style={styles.slotTitle}>{slot?.label || 'Athletics & Games'}</Text>
+            </View>
+            <MaterialCommunityIcons name="trophy-outline" size={32} color="#FFFFFF" />
+          </View>
+          <Text style={styles.slotCap}>
+            Capacity: {registrations.length} / {slot?.capacity || 22} Registered
+          </Text>
         </View>
 
         <Text style={styles.secTitle}>Registered Students</Text>
-        {registrations.map(r => {
-          const stu = teacherStore.students.find(s => s.id === r.student_id);
-          return (
-            <View key={r.id} style={styles.regCard}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>R{stu?.roll_no}</Text>
+        {registrations.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <MaterialCommunityIcons name="whistle-outline" size={44} color="#C9B6FA" />
+            <Text style={styles.emptyTitle}>No Players Registered</Text>
+            <Text style={styles.emptySubtitle}>
+              Select students from your section and enroll them into sports squads and team rosters.
+            </Text>
+          </View>
+        ) : (
+          registrations.map(r => {
+            const stu = teacherStore.students.find(s => s.id === r.student_id);
+            const sec = stu ? teacherStore.sections.find(s => s.id === stu.section_id) : null;
+            return (
+              <View key={r.id} style={styles.regCard}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>R{stu?.roll_no || '?'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.regName}>{stu?.full_name || 'Enrolled Student'}</Text>
+                  <Text style={styles.regDetails}>
+                    Class {sec ? `${sec.grade}-${sec.name}` : ''} • {r.details || 'Squad member'}
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.regName}>{stu?.full_name}</Text>
-                <Text style={styles.regDetails}>{r.details || 'Squad member'}</Text>
-              </View>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
       </ScrollView>
 
       {showRegModal && (
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Register Student for Sport</Text>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Register Student for Sport</Text>
+              <TouchableOpacity onPress={() => setShowRegModal(false)} style={styles.modalCloseBtn}>
+                <Feather name="x" size={20} color="#1F1B2E" />
+              </TouchableOpacity>
+            </View>
             <TextInput
               style={styles.mInput}
               keyboardType="number-pad"
-              placeholder="Roll Number (Class 6-A)"
+              placeholder="Enter Student Roll Number"
+              placeholderTextColor={THEME.colors.textMuted}
               value={studentRoll}
               onChangeText={setStudentRoll}
             />
             <TextInput
               style={styles.mInput}
-              placeholder="Position (e.g. All-rounder, Bowler)"
+              placeholder="Position or Squad Role (e.g. Batsman, Runner)"
+              placeholderTextColor={THEME.colors.textMuted}
               value={roleDetails}
               onChangeText={setRoleDetails}
             />
@@ -143,11 +183,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: THEME.colors.textMain,
-  },
   headerTitleBox: {
     flex: 1,
     marginLeft: 12,
@@ -162,6 +197,8 @@ const styles = StyleSheet.create({
     color: THEME.colors.textMuted,
   },
   addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: THEME.colors.primary,
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -196,7 +233,7 @@ const styles = StyleSheet.create({
   slotCap: {
     color: '#FFFFFF',
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 8,
   },
   secTitle: {
     fontSize: 14,
@@ -211,6 +248,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   avatar: {
     width: 36,
@@ -235,9 +274,34 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: THEME.colors.textMuted,
   },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: THEME.colors.textMain,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
   modalBackdrop: {
     position: 'absolute',
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     padding: 24,
@@ -247,11 +311,19 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
   },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: THEME.colors.textMain,
-    marginBottom: 14,
+  },
+  modalCloseBtn: {
+    padding: 4,
   },
   mInput: {
     backgroundColor: THEME.colors.pageBg,
@@ -261,11 +333,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: THEME.colors.textMain,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   modalBtnRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: 10,
+    gap: 8,
   },
   cancelBtn: {
     paddingHorizontal: 16,
@@ -284,7 +359,7 @@ const styles = StyleSheet.create({
   },
   submitText: {
     color: '#FFFFFF',
-    fontSize: 12,
     fontWeight: '800',
+    fontSize: 12,
   },
 });

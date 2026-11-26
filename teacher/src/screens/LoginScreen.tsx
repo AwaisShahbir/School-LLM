@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   SafeAreaView
 } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../theme/colors';
 import { teacherStore } from '../lib/teacherStore';
 
@@ -18,22 +19,26 @@ interface LoginScreenProps {
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [cnic, setCnic] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError(null);
     setLoading(true);
 
-    setTimeout(() => {
+    try {
+      const res = await teacherStore.login(cnic, password);
       setLoading(false);
-      const res = teacherStore.login(cnic, password);
       if (res.success) {
         onLoginSuccess(Boolean(res.mustChangePassword));
       } else {
         setError(res.error || 'Authentication failed. Verify credentials.');
       }
-    }, 400);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || 'Login error occurred.');
+    }
   };
 
   return (
@@ -45,7 +50,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         {/* Header Branding */}
         <View style={styles.header}>
           <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>SCH</Text>
+            <MaterialCommunityIcons name="school" size={32} color="#FFFFFF" />
           </View>
           <Text style={styles.title}>Faculty Portal</Text>
           <Text style={styles.subtitle}>Sign in with your 13-digit National CNIC</Text>
@@ -53,6 +58,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
         {error && (
           <View style={styles.errorBox}>
+            <Feather name="alert-circle" size={16} color="#F27D8D" style={{ marginRight: 6 }} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -61,30 +67,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <View style={styles.card}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>13-Digit National CNIC</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="3520112345671 (no dashes)"
-              placeholderTextColor={THEME.colors.textMuted}
-              keyboardType="number-pad"
-              maxLength={13}
-              value={cnic}
-              onChangeText={setCnic}
-            />
+            <View style={styles.inputWrapper}>
+              <Feather name="credit-card" size={18} color="#7048E8" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="3520112345671 (no dashes)"
+                placeholderTextColor={THEME.colors.textMuted}
+                keyboardType="number-pad"
+                maxLength={13}
+                value={cnic}
+                onChangeText={setCnic}
+              />
+            </View>
             <Text style={styles.hint}>
-              Auth ID: {cnic ? `${cnic}@teachers.school.app` : 'your-cnic@teachers.school.app'}
+              Enter 13 numeric digits without dashes
             </Text>
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••••••••"
-              placeholderTextColor={THEME.colors.textMuted}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.inputWrapper}>
+              <Feather name="lock" size={18} color="#7048E8" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••••••"
+                placeholderTextColor={THEME.colors.textMuted}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                <Feather name={showPassword ? 'eye-off' : 'eye'} size={18} color="#6B6880" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -95,7 +110,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.loginBtnText}>Sign In to Faculty App</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <Text style={styles.loginBtnText}>Sign In to Faculty App</Text>
+                <Feather name="arrow-right" size={16} color="#FFFFFF" />
+              </View>
             )}
           </TouchableOpacity>
         </View>
@@ -188,6 +206,21 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 16,
   },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: THEME.colors.pageBg,
+    borderRadius: THEME.roundness.input,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  eyeBtn: {
+    padding: 6,
+  },
   label: {
     fontSize: 11,
     fontWeight: '700',
@@ -197,11 +230,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    backgroundColor: THEME.colors.pageBg,
-    borderRadius: THEME.roundness.input,
-    paddingHorizontal: 16,
+    flex: 1,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 14,
     color: THEME.colors.textMain,
   },
   hint: {

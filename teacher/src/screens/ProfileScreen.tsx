@@ -8,6 +8,7 @@ import {
   StyleSheet,
   SafeAreaView
 } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../theme/colors';
 import { teacherStore } from '../lib/teacherStore';
 
@@ -31,7 +32,6 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout, onBack }) => {
   }, []);
 
   const handleSaveProfile = () => {
-    // Teacher limited column update via RPC
     teacherStore.updateOwnProfile({
       phone,
       address,
@@ -47,7 +47,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout, onBack }) => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <Text style={styles.backBtnText}>←</Text>
+          <Feather name="arrow-left" size={20} color="#1F1B2E" />
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
           <Text style={styles.headerTitle}>Faculty Profile</Text>
@@ -57,6 +57,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout, onBack }) => {
           style={styles.editBtn}
           onPress={() => setEditing(!editing)}
         >
+          <Feather name="edit-2" size={12} color="#7048E8" style={{ marginRight: 4 }} />
           <Text style={styles.editBtnText}>{editing ? 'Cancel' : 'Edit'}</Text>
         </TouchableOpacity>
       </View>
@@ -66,11 +67,13 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout, onBack }) => {
         <View style={styles.card}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
-              {teacher?.full_name.split(' ').map(n => n[0]).slice(0, 2).join('') || 'FC'}
+              {teacher?.full_name
+                ? teacher.full_name.split(' ').map(n => n[0]).slice(0, 2).join('')
+                : 'FM'}
             </Text>
           </View>
-          <Text style={styles.name}>{teacher?.full_name}</Text>
-          <Text style={styles.subject}>{teacher?.subject || 'Faculty Specialist'}</Text>
+          <Text style={styles.name}>{teacher?.full_name || 'Faculty Member'}</Text>
+          <Text style={styles.subject}>{teacher?.subject || 'Teaching Faculty'}</Text>
           <View style={styles.statusPill}>
             <Text style={styles.statusPillText}>Active Staff Member</Text>
           </View>
@@ -78,75 +81,87 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout, onBack }) => {
 
         {savedMsg && (
           <View style={styles.successBox}>
-            <Text style={styles.successText}>✓ Profile updated via secure RPC function</Text>
+            <Feather name="check-circle" size={16} color="#2FA36B" style={{ marginRight: 6 }} />
+            <Text style={styles.successText}>Profile updated successfully</Text>
           </View>
         )}
 
-        {/* Credentials & Limited Fields */}
+        {/* Credentials & System Fields */}
         <View style={styles.detailsCard}>
           <Text style={styles.cardHeader}>Verified Identification</Text>
 
           <View style={styles.row}>
-            <Text style={styles.key}>CNIC Login:</Text>
-            <Text style={styles.valMono}>{teacher?.cnic || '3520112345671'}</Text>
+            <View style={styles.rowLeft}>
+              <MaterialCommunityIcons name="card-account-details-outline" size={18} color="#7048E8" />
+              <Text style={styles.key}>CNIC Login:</Text>
+            </View>
+            <Text style={styles.valMono}>{teacher?.cnic || 'Not recorded'}</Text>
           </View>
 
           <View style={styles.row}>
-            <Text style={styles.key}>Synthetic Auth ID:</Text>
-            <Text style={styles.val}>{teacher?.email}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.key}>Joining Date:</Text>
-            <Text style={styles.val}>{teacher?.joining_date || '2023-01-15'}</Text>
-          </View>
-
-          <View style={[styles.row, { borderBottomWidth: 0 }]}>
-            <Text style={styles.key}>Salary Disbursal:</Text>
-            <Text style={[styles.val, { color: THEME.colors.paid }]}>Paid for Nov 2026</Text>
+            <View style={styles.rowLeft}>
+              <Feather name="calendar" size={18} color="#7048E8" />
+              <Text style={styles.key}>Joining Date:</Text>
+            </View>
+            <Text style={styles.val}>{teacher?.joining_date || 'Active'}</Text>
           </View>
         </View>
 
-        {/* Editable Fields (RPC update_own_profile) */}
+        {/* Editable Fields */}
         <View style={styles.detailsCard}>
-          <Text style={styles.cardHeader}>Editable Contact Info</Text>
+          <Text style={styles.cardHeader}>Contact & Qualifications</Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Mobile Contact</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <Feather name="phone" size={16} color="#7048E8" />
+              <Text style={styles.inputLabel}>Mobile Contact</Text>
+            </View>
             {editing ? (
               <TextInput
                 style={styles.input}
+                placeholder="Enter phone number"
+                placeholderTextColor={THEME.colors.textMuted}
                 value={phone}
                 onChangeText={setPhone}
               />
             ) : (
-              <Text style={styles.val}>{teacher?.phone || 'Not set'}</Text>
+              <Text style={styles.valText}>{teacher?.phone || 'Not recorded'}</Text>
             )}
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Qualification</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <Feather name="award" size={16} color="#7048E8" />
+              <Text style={styles.inputLabel}>Qualification</Text>
+            </View>
             {editing ? (
               <TextInput
                 style={styles.input}
+                placeholder="Degrees / Certifications"
+                placeholderTextColor={THEME.colors.textMuted}
                 value={qual}
                 onChangeText={setQual}
               />
             ) : (
-              <Text style={styles.val}>{teacher?.qualification || 'Not set'}</Text>
+              <Text style={styles.valText}>{teacher?.qualification || 'Not recorded'}</Text>
             )}
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Residential Address</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <Feather name="map-pin" size={16} color="#7048E8" />
+              <Text style={styles.inputLabel}>Residential Address</Text>
+            </View>
             {editing ? (
               <TextInput
                 style={styles.input}
+                placeholder="Enter residential address"
+                placeholderTextColor={THEME.colors.textMuted}
                 value={address}
                 onChangeText={setAddress}
               />
             ) : (
-              <Text style={styles.val}>{teacher?.address || 'Not set'}</Text>
+              <Text style={styles.valText}>{teacher?.address || 'Not recorded'}</Text>
             )}
           </View>
 
@@ -159,6 +174,7 @@ export const ProfileScreen: React.FC<Props> = ({ onLogout, onBack }) => {
 
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutBtn} onPress={onLogout}>
+          <Feather name="log-out" size={18} color="#F27D8D" style={{ marginRight: 8 }} />
           <Text style={styles.logoutText}>Sign Out from Device</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -188,11 +204,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: THEME.colors.textMain,
-  },
   headerTitleBox: {
     flex: 1,
     marginLeft: 12,
@@ -207,8 +218,10 @@ const styles = StyleSheet.create({
     color: THEME.colors.textMuted,
   },
   editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: THEME.colors.primaryLight,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: THEME.roundness.pill,
   },
@@ -227,11 +240,8 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   avatar: {
     width: 64,
@@ -253,109 +263,130 @@ const styles = StyleSheet.create({
     color: THEME.colors.textMain,
   },
   subject: {
-    fontSize: 12,
+    fontSize: 13,
     color: THEME.colors.textMuted,
     marginTop: 2,
   },
   statusPill: {
-    backgroundColor: '#E6F4EA',
-    paddingHorizontal: 10,
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: THEME.roundness.pill,
     marginTop: 10,
   },
   statusPillText: {
-    color: THEME.colors.paid,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
+    color: '#2FA36B',
   },
   successBox: {
-    backgroundColor: '#E6F4EA',
-    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
     borderRadius: 12,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 14,
   },
   successText: {
-    color: THEME.colors.paid,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    textAlign: 'center',
+    color: '#2FA36B',
   },
   detailsCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 18,
-    marginBottom: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   cardHeader: {
     fontSize: 13,
     fontWeight: '800',
     color: THEME.colors.textMain,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   row: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F4F3F8',
   },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   key: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: THEME.colors.textMuted,
   },
   val: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: THEME.colors.textMain,
   },
   valMono: {
     fontSize: 12,
-    fontFamily: 'monospace',
     fontWeight: '700',
     color: THEME.colors.textMain,
+    fontFamily: 'monospace',
+  },
+  valText: {
+    fontSize: 13,
+    color: THEME.colors.textMain,
+    paddingVertical: 4,
   },
   inputGroup: {
-    marginBottom: 10,
+    marginBottom: 14,
   },
   inputLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: THEME.colors.textMuted,
     textTransform: 'uppercase',
-    marginBottom: 4,
   },
   input: {
     backgroundColor: THEME.colors.pageBg,
     borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     fontSize: 13,
     color: THEME.colors.textMain,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   saveBtn: {
     backgroundColor: THEME.colors.primary,
     borderRadius: THEME.roundness.pill,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 6,
   },
   saveBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
     fontWeight: '800',
+    fontSize: 13,
   },
   logoutBtn: {
-    backgroundColor: '#FDE8EA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
     borderRadius: THEME.roundness.pill,
     paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#F27D8D',
+    marginTop: 10,
+    marginBottom: 20,
   },
   logoutText: {
-    color: THEME.colors.absent,
     fontSize: 13,
     fontWeight: '800',
+    color: '#F27D8D',
   },
 });

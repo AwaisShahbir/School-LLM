@@ -8,6 +8,7 @@ import {
   StyleSheet,
   SafeAreaView
 } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME } from '../theme/colors';
 import { teacherStore } from '../lib/teacherStore';
 import type { Student } from '../types/database';
@@ -19,14 +20,32 @@ interface Props {
 export const ClassesScreen: React.FC<Props> = ({ onBack }) => {
   const [, setTick] = useState(0);
 
-  const [selectedGrade, setSelectedGrade] = useState<number>(6);
-  const [selectedSection, setSelectedSection] = useState<string>('A');
-  const [searchRoll, setSearchRoll] = useState<string>('');
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-
   useEffect(() => {
     return teacherStore.subscribe(() => setTick(t => t + 1));
   }, []);
+
+  const availableGrades = Array.from(new Set(teacherStore.sections.map(s => s.grade))).sort((a, b) => a - b);
+  const [selectedGrade, setSelectedGrade] = useState<number>(availableGrades[0] || 6);
+
+  useEffect(() => {
+    if (availableGrades.length > 0 && !availableGrades.includes(selectedGrade)) {
+      setSelectedGrade(availableGrades[0]);
+    }
+  }, [availableGrades.length]);
+
+  const availableSections = Array.from(
+    new Set(teacherStore.sections.filter(s => s.grade === selectedGrade).map(s => s.name))
+  ).sort();
+  const [selectedSection, setSelectedSection] = useState<string>(availableSections[0] || 'A');
+
+  useEffect(() => {
+    if (availableSections.length > 0 && !availableSections.includes(selectedSection)) {
+      setSelectedSection(availableSections[0]);
+    }
+  }, [selectedGrade, availableSections.length]);
+
+  const [searchRoll, setSearchRoll] = useState<string>('');
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   const currentSection = teacherStore.sections.find(
     s => s.grade === selectedGrade && s.name === selectedSection
@@ -43,60 +62,85 @@ export const ClassesScreen: React.FC<Props> = ({ onBack }) => {
     return s.section_id === currentSection?.id && s.status === 'active';
   });
 
+  // Dynamic calculations for selected student profile
+  const stuAtt = selectedStudent ? teacherStore.attendance.filter(a => a.student_id === selectedStudent.id) : [];
+  const presentCount = stuAtt.filter(a => a.status === 'present').length;
+  const absentCount = stuAtt.filter(a => a.status === 'absent').length;
+  const lateCount = stuAtt.filter(a => a.status === 'late').length;
+  const attPct = stuAtt.length ? Math.round((presentCount / stuAtt.length) * 100) : 0;
+
+  const stuFee = selectedStudent ? teacherStore.fees.filter(f => f.student_id === selectedStudent.id) : [];
+  const latestFee = stuFee[0];
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-          <Text style={styles.backBtnText}>←</Text>
+          <Feather name="arrow-left" size={20} color="#1F1B2E" />
         </TouchableOpacity>
         <View style={styles.headerTitleBox}>
           <Text style={styles.headerTitle}>Student Directory</Text>
-          <Text style={styles.headerSub}>Grades 6 to 10 Enrolment</Text>
+          <Text style={styles.headerSub}>
+            {teacherStore.students.length > 0 
+              ? `${teacherStore.students.length} Total Enrolled Students` 
+              : 'School Enrolment'}
+          </Text>
         </View>
       </View>
 
-      {/* Grade Selector */}
+      {/* Grade Selector & Filters */}
       <View style={styles.pickerSection}>
-        <View style={styles.row}>
-          <Text style={styles.pickerLabel}>Grade:</Text>
-          {[6, 7, 8, 9, 10].map(g => (
-            <TouchableOpacity
-              key={g}
-              style={[styles.gPill, selectedGrade === g && !searchRoll && styles.gPillActive]}
-              onPress={() => {
-                setSelectedGrade(g);
-                setSearchRoll('');
-              }}
-            >
-              <Text style={[styles.gPillText, selectedGrade === g && !searchRoll && styles.gPillTextActive]}>
-                {g}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {availableGrades.length > 0 ? (
+          <>
+            <View style={styles.row}>
+              <Text style={styles.pickerLabel}>Grade:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {availableGrades.map(g => (
+                  <TouchableOpacity
+                    key={g}
+                    style={[styles.gPill, selectedGrade === g && !searchRoll && styles.gPillActive]}
+                    onPress={() => {
+                      setSelectedGrade(g);
+                      setSearchRoll('');
+                    }}
+                  >
+                    <Text style={[styles.gPillText, selectedGrade === g && !searchRoll && styles.gPillTextActive]}>
+                      Grade {g}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
 
-        {/* Section Selector */}
-        <View style={[styles.row, { marginTop: 8 }]}>
-          <Text style={styles.pickerLabel}>Section:</Text>
-          {['A', 'B', 'C'].map(s => (
-            <TouchableOpacity
-              key={s}
-              style={[styles.sPill, selectedSection === s && !searchRoll && styles.sPillActive]}
-              onPress={() => {
-                setSelectedSection(s);
-                setSearchRoll('');
-              }}
-            >
-              <Text style={[styles.sPillText, selectedSection === s && !searchRoll && styles.sPillTextActive]}>
-                Sec {s}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+            {/* Section Selector */}
+            {availableSections.length > 0 && (
+              <View style={[styles.row, { marginTop: 8 }]}>
+                <Text style={styles.pickerLabel}>Section:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {availableSections.map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.sPill, selectedSection === s && !searchRoll && styles.sPillActive]}
+                      onPress={() => {
+                        setSelectedSection(s);
+                        setSearchRoll('');
+                      }}
+                    >
+                      <Text style={[styles.sPillText, selectedSection === s && !searchRoll && styles.sPillTextActive]}>
+                        Sec {s}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </>
+        ) : null}
 
-        {/* Roll Search */}
+        {/* Search Box */}
         <View style={styles.searchBox}>
+          <Feather name="search" size={16} color={THEME.colors.textMuted} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by roll number or student name..."
@@ -104,81 +148,120 @@ export const ClassesScreen: React.FC<Props> = ({ onBack }) => {
             value={searchRoll}
             onChangeText={setSearchRoll}
           />
+          {searchRoll.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchRoll('')} style={styles.clearBtn}>
+              <Feather name="x" size={14} color={THEME.colors.textMuted} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
       {/* Students List */}
-      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
-        {students.map(stu => {
-          const sec = teacherStore.sections.find(s => s.id === stu.section_id);
-          return (
-            <TouchableOpacity
-              key={stu.id}
-              style={styles.card}
-              onPress={() => setSelectedStudent(stu)}
-            >
-              <View style={styles.cardLeft}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>R{stu.roll_no}</Text>
+      {teacherStore.sections.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <MaterialCommunityIcons name="google-classroom" size={48} color="#C9B6FA" />
+          <Text style={styles.emptyTitle}>No Classes Configured</Text>
+          <Text style={styles.emptySubtitle}>
+            Classes and sections can be created dynamically by the school administrator in the Admin Portal.
+          </Text>
+        </View>
+      ) : students.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Feather name="users" size={44} color="#C9B6FA" />
+          <Text style={styles.emptyTitle}>No Students Found</Text>
+          <Text style={styles.emptySubtitle}>
+            {searchRoll.trim() 
+              ? `No student matching "${searchRoll}". Try searching with another roll number or name.`
+              : `No students enrolled in Class ${selectedGrade}-${selectedSection} yet.`}
+          </Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+          {students.map(stu => {
+            const sec = teacherStore.sections.find(s => s.id === stu.section_id);
+            return (
+              <TouchableOpacity
+                key={stu.id}
+                style={styles.card}
+                onPress={() => setSelectedStudent(stu)}
+              >
+                <View style={styles.cardLeft}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>R{stu.roll_no}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.stuName}>{stu.full_name}</Text>
+                    <Text style={styles.stuSub}>
+                      Class {sec ? `${sec.grade}-${sec.name}` : ''} • Father: {stu.father_name || 'Guardian'}
+                    </Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.stuName}>{stu.full_name}</Text>
-                  <Text style={styles.stuSub}>Class {sec?.grade}-{sec?.name} • Father: {stu.father_name}</Text>
-                </View>
-              </View>
-              <Text style={styles.arrowText}>Profile →</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+                <Feather name="chevron-right" size={20} color={THEME.colors.primary} />
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* Student Profile Modal */}
       {selectedStudent && (
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.modalTitle}>{selectedStudent.full_name}</Text>
                 <Text style={styles.modalSub}>
                   Roll #{selectedStudent.roll_no} • Class {selectedGrade}-{selectedSection}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setSelectedStudent(null)} style={styles.closeBtn}>
-                <Text style={styles.closeText}>✕</Text>
+                <Feather name="x" size={20} color="#1F1B2E" />
               </TouchableOpacity>
             </View>
 
             {/* Attendance Donut / Ring Indicator */}
             <View style={styles.donutCard}>
               <View style={styles.donutCircle}>
-                <Text style={styles.donutNum}>94%</Text>
+                <Text style={styles.donutNum}>{stuAtt.length > 0 ? `${attPct}%` : '—'}</Text>
                 <Text style={styles.donutLabel}>Attendance</Text>
               </View>
               <View style={styles.donutLegend}>
-                <Text style={styles.legText}>• Present: 18 Sessions</Text>
-                <Text style={styles.legText}>• Absent: 1 Session</Text>
-                <Text style={styles.legText}>• Late: 1 Session</Text>
+                {stuAtt.length > 0 ? (
+                  <>
+                    <Text style={styles.legText}>• Present: {presentCount} Sessions</Text>
+                    <Text style={styles.legText}>• Absent: {absentCount} Sessions</Text>
+                    <Text style={styles.legText}>• Late: {lateCount} Sessions</Text>
+                  </>
+                ) : (
+                  <Text style={styles.legText}>No attendance records recorded yet.</Text>
+                )}
               </View>
             </View>
 
             {/* Fee Status (Read-Only) */}
             <View style={styles.infoRow}>
-              <Text style={styles.infoKey}>November Fee:</Text>
-              <View style={styles.feePill}>
-                <Text style={styles.feePillText}>PAID (Rs. 3,500)</Text>
-              </View>
+              <Text style={styles.infoKey}>Fee Status:</Text>
+              {latestFee ? (
+                <View style={[styles.feePill, { backgroundColor: latestFee.status === 'paid' ? '#E8F5E9' : '#FDE8EA' }]}>
+                  <Text style={[styles.feePillText, { color: latestFee.status === 'paid' ? '#2FA36B' : '#F27D8D' }]}>
+                    {latestFee.status.toUpperCase()} ({latestFee.amount ? `Rs. ${latestFee.amount.toLocaleString()}` : ''})
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.infoVal}>No fee records</Text>
+              )}
             </View>
 
             {/* Guardian Phone */}
             <View style={styles.infoRow}>
               <Text style={styles.infoKey}>Guardian Tel:</Text>
-              <Text style={styles.infoVal}>{selectedStudent.phone1 || '03121000001'}</Text>
+              <Text style={styles.infoVal}>{selectedStudent.phone1 || 'Not recorded'}</Text>
             </View>
 
             {/* B-Form */}
             <View style={styles.infoRow}>
               <Text style={styles.infoKey}>B-Form / CNIC:</Text>
-              <Text style={styles.infoVal}>{selectedStudent.b_form || '35202-0000000-1'}</Text>
+              <Text style={styles.infoVal}>{selectedStudent.b_form || 'Not recorded'}</Text>
             </View>
 
             <TouchableOpacity
@@ -216,11 +299,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: THEME.colors.textMain,
-  },
   headerTitleBox: {
     marginLeft: 12,
   },
@@ -252,9 +330,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   gPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: THEME.roundness.pill,
     backgroundColor: THEME.colors.pageBg,
     marginRight: 6,
   },
@@ -270,9 +348,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   sPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: THEME.roundness.pill,
     backgroundColor: THEME.colors.pageBg,
     marginRight: 6,
   },
@@ -288,15 +366,26 @@ const styles = StyleSheet.create({
     color: THEME.colors.primary,
   },
   searchBox: {
-    marginTop: 10,
-  },
-  searchInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: THEME.colors.pageBg,
     borderRadius: THEME.roundness.pill,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
+  },
+  searchIcon: {
+    marginRight: 6,
+  },
+  searchInput: {
+    flex: 1,
     paddingVertical: 8,
     fontSize: 12,
     color: THEME.colors.textMain,
+  },
+  clearBtn: {
+    padding: 4,
   },
   listContent: {
     padding: 16,
@@ -310,11 +399,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#E9E6F2',
   },
   cardLeft: {
     flexDirection: 'row',
@@ -328,31 +414,48 @@ const styles = StyleSheet.create({
     backgroundColor: THEME.colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 12,
   },
   avatarText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     color: THEME.colors.primary,
   },
   stuName: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: THEME.colors.textMain,
   },
   stuSub: {
     fontSize: 11,
     color: THEME.colors.textMuted,
-    marginTop: 1,
+    marginTop: 2,
   },
-  arrowText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: THEME.colors.primary,
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: THEME.colors.textMain,
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: THEME.colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   modalBackdrop: {
     position: 'absolute',
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     padding: 24,
@@ -360,12 +463,11 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 24,
+    padding: 20,
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 16,
   },
   modalTitle: {
@@ -379,39 +481,40 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   closeBtn: {
-    padding: 4,
-  },
-  closeText: {
-    fontSize: 16,
-    color: THEME.colors.textMuted,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: THEME.colors.pageBg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   donutCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: THEME.colors.pageBg,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
   },
   donutCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     borderWidth: 4,
     borderColor: THEME.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 14,
   },
   donutNum: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
-    color: THEME.colors.textMain,
+    color: THEME.colors.primary,
   },
   donutLabel: {
-    fontSize: 8,
-    color: THEME.colors.textMuted,
+    fontSize: 7,
     fontWeight: '700',
+    color: THEME.colors.textMuted,
     textTransform: 'uppercase',
   },
   donutLegend: {
@@ -419,15 +522,14 @@ const styles = StyleSheet.create({
   },
   legText: {
     fontSize: 11,
-    fontWeight: '600',
     color: THEME.colors.textMain,
-    marginBottom: 2,
+    lineHeight: 18,
   },
   infoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F4F3F8',
   },
@@ -438,30 +540,28 @@ const styles = StyleSheet.create({
   },
   infoVal: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: THEME.colors.textMain,
   },
   feePill: {
-    backgroundColor: '#E6F4EA',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: THEME.roundness.pill,
   },
   feePillText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
-    color: THEME.colors.paid,
   },
   modalDismissBtn: {
-    backgroundColor: THEME.colors.primary,
+    backgroundColor: THEME.colors.pageBg,
     borderRadius: THEME.roundness.pill,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 18,
   },
   modalDismissText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '700',
+    color: THEME.colors.textMain,
   },
 });

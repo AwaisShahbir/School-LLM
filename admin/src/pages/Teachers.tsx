@@ -33,11 +33,10 @@ export const Teachers: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [cnic, setCnic] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [subject, setSubject] = useState('');
   const [qualification, setQualification] = useState('');
-  const [joiningDate, setJoiningDate] = useState('2026-11-01');
   const [salary, setSalary] = useState('65000');
+  const [tempPassword, setTempPassword] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,7 +52,7 @@ export const Teachers: React.FC = () => {
     );
   });
 
-  const handleAddTeacher = (e: React.FormEvent) => {
+  const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -69,39 +68,55 @@ export const Teachers: React.FC = () => {
     }
 
     try {
-      const newTeacher = schoolStore.addTeacher({
+      const res = await schoolStore.addTeacher({
         full_name: fullName.trim(),
         cnic: cleanCnic,
         phone: phone.trim() || null,
-        email: email.trim() || `${cleanCnic}@teachers.school.app`,
-        address: 'Lahore, Pakistan',
-        qualification: qualification.trim() || null,
-        photo_path: null,
         subject: subject.trim(),
-        joining_date: joiningDate,
-        resignation_date: null,
-        active: true
+        qualification: qualification.trim() || 'B.Ed / Masters',
+        salary: Number(salary) || 50000,
+        temp_password: tempPassword.trim() || undefined
       });
 
       // Clear & Close
       setFullName('');
       setCnic('');
       setPhone('');
-      setEmail('');
       setSubject('');
       setQualification('');
+      setTempPassword('');
       setShowAddModal(false);
-      setTempPasswordGenerated(`Teach#${cleanCnic.slice(-4)}`);
-      setShowResetModal(newTeacher);
+      setTempPasswordGenerated(res.temp_password);
+      setShowResetModal({
+        id: res.id,
+        full_name: res.full_name,
+        cnic: res.cnic,
+        role: 'teacher',
+        active: true,
+        must_change_password: true,
+        created_at: new Date().toISOString(),
+        phone: null,
+        email: null,
+        address: null,
+        qualification: null,
+        photo_path: null,
+        subject: subject.trim(),
+        joining_date: null,
+        resignation_date: null
+      });
     } catch (err: any) {
       setFormError(err.message || 'Error creating teacher');
     }
   };
 
-  const handleResetPassword = (teacher: Teacher) => {
-    const pwd = schoolStore.resetTeacherPassword(teacher.id);
-    setTempPasswordGenerated(pwd);
-    setShowResetModal(teacher);
+  const handleResetPassword = async (teacher: Teacher) => {
+    try {
+      const pwd = await schoolStore.resetTeacherPassword(teacher.id);
+      setTempPasswordGenerated(pwd);
+      setShowResetModal(teacher);
+    } catch (err: any) {
+      alert(err.message || 'Failed to reset password');
+    }
   };
 
   const handleToggleActive = (teacher: Teacher) => {
@@ -189,9 +204,6 @@ export const Teachers: React.FC = () => {
                     <span className="font-mono text-xs font-semibold bg-[#F4F3F8] px-2.5 py-1 rounded-full text-[#1F1B2E]">
                       {teacher.cnic || 'N/A'}
                     </span>
-                    <p className="text-[10px] text-[#6B6880] mt-0.5">
-                      {teacher.cnic ? `${teacher.cnic}@teachers.school.app` : ''}
-                    </p>
                   </td>
 
                   <td className="py-4 px-6">
@@ -202,7 +214,6 @@ export const Teachers: React.FC = () => {
 
                   <td className="py-4 px-6">
                     <p className="text-xs font-medium text-[#1F1B2E]">{teacher.phone || 'No phone'}</p>
-                    <p className="text-[11px] text-[#6B6880]">{teacher.email}</p>
                   </td>
 
                   <td className="py-4 px-6 text-xs text-[#6B6880]">
@@ -309,8 +320,19 @@ export const Teachers: React.FC = () => {
                   className="w-full font-mono bg-[#F4F3F8] text-sm text-[#1F1B2E] px-4 py-2.5 rounded-[14px] border border-transparent focus:border-[#7048E8] focus:bg-white outline-none transition"
                 />
                 <p className="text-[11px] text-[#6B6880] mt-1">
-                  Synthetic Auth ID: {cnic ? `${cnic}@teachers.school.app` : '13-digit-cnic@teachers.school.app'}
+                  Teacher will use their 13-digit CNIC to log in to the mobile app.
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1F1B2E] uppercase mb-1.5">Temporary Password (Optional)</label>
+                <input
+                  type="text"
+                  value={tempPassword}
+                  onChange={(e) => setTempPassword(e.target.value)}
+                  placeholder={`Default: Teach#${cnic ? cnic.slice(-4) : 'XXXX'}`}
+                  className="w-full bg-[#F4F3F8] text-sm text-[#1F1B2E] px-4 py-2.5 rounded-[14px] border border-transparent focus:border-[#7048E8] focus:bg-white outline-none transition"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

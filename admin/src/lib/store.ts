@@ -160,31 +160,97 @@ class SchoolStore {
   }
 
   // --- TEACHERS ---
-  addTeacher(data: Omit<Teacher, 'id' | 'created_at' | 'must_change_password' | 'role'>) {
+  async addTeacher(data: {
+    full_name: string;
+    cnic: string;
+    phone?: string | null;
+    subject: string;
+    qualification?: string | null;
+    salary?: number;
+    temp_password?: string;
+  }): Promise<{ id: string; cnic: string; temp_password: string; full_name: string }> {
+    if (isSupabaseConfigured) {
+      const { data: res, error } = await supabase.rpc('admin_create_teacher', {
+        p_cnic: data.cnic,
+        p_full_name: data.full_name,
+        p_subject: data.subject,
+        p_phone: data.phone || null,
+        p_qualification: data.qualification || 'B.Ed / Masters',
+        p_salary: data.salary || 50000,
+        p_temp_password: data.temp_password || null
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      await this.loadFromSupabase();
+      return {
+        id: res.teacher_id,
+        cnic: res.cnic,
+        temp_password: res.temp_password,
+        full_name: data.full_name
+      };
+    }
+
     const id = `teach-${Date.now()}`;
     const newTeacher: Teacher = {
-      ...data,
       id,
       role: 'teacher',
+      full_name: data.full_name,
+      cnic: data.cnic,
+      phone: data.phone || null,
+      email: null,
+      address: null,
+      qualification: data.qualification || null,
+      photo_path: null,
+      subject: data.subject,
+      joining_date: new Date().toISOString().split('T')[0],
+      resignation_date: null,
+      active: true,
       must_change_password: true,
       created_at: new Date().toISOString()
     };
     this.teachers.push(newTeacher);
     this.notify();
-    return newTeacher;
+    return {
+      id,
+      cnic: data.cnic,
+      temp_password: data.temp_password || `Teach#${data.cnic.slice(-4)}`,
+      full_name: data.full_name
+    };
   }
 
   updateTeacher(id: string, updates: Partial<Teacher>) {
     this.teachers = this.teachers.map(t => t.id === id ? { ...t, ...updates } : t);
     this.notify();
+    if (isSupabaseConfigured) {
+      supabase.from('profiles').update(updates).eq('id', id).then(() => {});
+    }
   }
 
-  resetTeacherPassword(id: string) {
-    this.teachers = this.teachers.map(t => 
-      t.id === id ? { ...t, must_change_password: true } : t
-    );
-    this.notify();
-    return `Teach#${(this.teachers.find(t => t.id === id)?.cnic || "9999").slice(-4)}`;
+  async resetTeacherPassword(id: string, tempPassword?: string): Promise<string> {
+    if (isSupabaseConfigured) {
+      const { data: res, error } = await supabase.rpc('admin_reset_teacher_password', {
+        p_teacher_id: id,
+        p_temp_password: tempPassword || null
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      await this.loadFromSupabase();
+      return res.temp_password;
+    }
+
+    const t = this.teachers.find(tea => tea.id === id);
+    if (t) {
+      t.must_change_password = true;
+      this.notify();
+      return `Teach#${(t.cnic || '9999').slice(-4)}`;
+    }
+    return 'Teach#1234';
   }
 
   // --- STUDENTS ---

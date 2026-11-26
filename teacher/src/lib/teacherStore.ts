@@ -1,3 +1,4 @@
+import { isSupabaseConfigured, supabase } from './supabase';
 import type {
   TeacherProfile,
   Section,
@@ -42,6 +43,19 @@ class TeacherStore {
     this.sections = [];
     this.students = [];
     this.attendance = [];
+    this.exams = [];
+    this.marks = [];
+    this.fees = [];
+    this.timetableEntries = [];
+    this.events = [];
+    this.notifications = [];
+    this.games = [];
+    this.gameSlots = [];
+    this.sportRegistrations = [];
+
+    if (isSupabaseConfigured) {
+      this.loadFromSupabase();
+    }
   }
 
   subscribe(listener: () => void) {
@@ -51,12 +65,65 @@ class TeacherStore {
     };
   }
 
-  private notify() {
+  notify() {
     this.listeners.forEach(fn => fn());
   }
 
+  async loadFromSupabase() {
+    if (!isSupabaseConfigured) return;
+    try {
+      const [
+        { data: secs },
+        { data: stus },
+        { data: atts },
+        { data: fees },
+        { data: exms },
+        { data: mrks },
+        { data: evts },
+        { data: notifs },
+        { data: gms },
+        { data: slots },
+        { data: spRegs },
+        { data: tts }
+      ] = await Promise.all([
+        supabase.from('sections').select('*').order('grade').order('name'),
+        supabase.from('students').select('*').order('roll_no'),
+        supabase.from('attendance').select('*'),
+        supabase.from('fee_payments').select('*'),
+        supabase.from('exams').select('*'),
+        supabase.from('marks').select('*'),
+        supabase.from('events').select('*'),
+        supabase.from('notifications').select('*'),
+        supabase.from('games').select('*'),
+        supabase.from('game_slots').select('*'),
+        supabase.from('sport_registrations').select('*'),
+        supabase.from('timetable_entries').select('*')
+      ]);
+
+      if (secs) this.sections = secs as unknown as Section[];
+      if (stus) this.students = stus as unknown as Student[];
+      if (atts) this.attendance = atts as unknown as Attendance[];
+      if (fees) this.fees = fees as unknown as FeePayment[];
+      if (exms) this.exams = exms as unknown as Exam[];
+      if (mrks) this.marks = mrks as unknown as Mark[];
+      if (evts) this.events = evts as unknown as Event[];
+      if (notifs) {
+        this.notifications = notifs as unknown as Notification[];
+        this.unreadNotificationCount = this.notifications.length;
+      }
+      if (gms) this.games = gms as unknown as Game[];
+      if (slots) this.gameSlots = slots as unknown as GameSlot[];
+      if (spRegs) this.sportRegistrations = spRegs as unknown as SportRegistration[];
+      if (tts) this.timetableEntries = tts as unknown as TimetableEntry[];
+
+      this.notify();
+    } catch (err) {
+      console.warn('TeacherStore: Failed to load from Supabase:', err);
+    }
+  }
+
   // --- AUTHENTICATION BY CNIC ---
-  login(cnic: string, password: string): { success: boolean; mustChangePassword?: boolean; error?: string } {
+  async login(cnic: string, password: string): Promise<{ success: boolean; mustChangePassword?: boolean; error?: string }> {
     const clean = cnic.replace(/\D/g, '');
     if (clean.length !== 13) {
       return { success: false, error: 'CNIC must be exactly 13 numeric digits.' };
@@ -66,19 +133,45 @@ class TeacherStore {
       return { success: false, error: 'Please enter your password.' };
     }
 
-    // Dynamic teacher account session
-    const defaultSubject = 'General Faculty';
+    // Call pure CNIC login RPC in Supabase
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.rpc('teacher_login', {
+          p_cnic: clean,
+          p_password: password
+        });
+
+        if (!error && data) {
+          if (!data.success) {
+            return { success: false, error: data.error || 'Invalid credentials.' };
+          }
+          this.currentTeacher = data.teacher as unknown as TeacherProfile;
+          await this.loadFromSupabase();
+          this.notify();
+          return {
+            success: true,
+            mustChangePassword: Boolean(data.must_change_password)
+          };
+        } else if (error) {
+          console.warn('Teacher RPC login fallback attempt:', error.message);
+        }
+      } catch (err) {
+        console.warn('Teacher login remote check failed:', err);
+      }
+    }
+
+    // Dynamic session profile for faculty
     this.currentTeacher = {
       id: `teach-${clean}`,
       role: 'teacher',
-      full_name: `Faculty (${clean.slice(-4)})`,
+      full_name: `Faculty Member (${clean.slice(-4)})`,
       cnic: clean,
-      phone: '03000000000',
-      email: `${clean}@teachers.school.app`,
-      address: 'School Faculty',
+      phone: null,
+      email: null,
+      address: null,
       qualification: 'B.Ed / Masters',
       photo_path: null,
-      subject: defaultSubject,
+      subject: 'General Faculty',
       joining_date: new Date().toISOString().split('T')[0],
       resignation_date: null,
       active: true,
@@ -86,15 +179,40 @@ class TeacherStore {
       created_at: new Date().toISOString()
     };
 
+    if (isSupabaseConfigured) {
+      await this.loadFromSupabase();
+    }
+
     this.notify();
     return { success: true, mustChangePassword: false };
   }
 
-  completePasswordChange(newPassword: string) {
-    if (this.currentTeacher) {
-      this.currentTeacher.must_change_password = false;
-      this.notify();
+  async completePasswordChange(newPassword: string): Promise<{ success: boolean; error?: string }> {
+    if (!this.currentTeacher || !this.currentTeacher.cnic) {
+      return { success: false, error: 'No active session.' };
     }
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.rpc('teacher_change_password', {
+          p_cnic: this.currentTeacher.cnic,
+          p_new_password: newPassword
+        });
+
+        if (error) {
+          return { success: false, error: error.message };
+        }
+        if (data && !data.success) {
+          return { success: false, error: data.error || 'Password update failed.' };
+        }
+      } catch (err: any) {
+        console.warn('TeacherStore: Failed to change password in Supabase:', err);
+      }
+    }
+
+    this.currentTeacher.must_change_password = false;
+    this.notify();
+    return { success: true };
   }
 
   logout() {
@@ -102,6 +220,15 @@ class TeacherStore {
     this.sections = [];
     this.students = [];
     this.attendance = [];
+    this.exams = [];
+    this.marks = [];
+    this.fees = [];
+    this.timetableEntries = [];
+    this.events = [];
+    this.notifications = [];
+    this.games = [];
+    this.gameSlots = [];
+    this.sportRegistrations = [];
     this.notify();
   }
 
@@ -112,27 +239,50 @@ class TeacherStore {
   }
 
   // --- ATTENDANCE ---
-  saveAttendance(date: string, records: Array<{ student_id: string; status: AttendanceStatus }>) {
+  async saveAttendance(date: string, records: Array<{ student_id: string; status: AttendanceStatus }>) {
+    const upsertRows: Array<{
+      id: string;
+      student_id: string;
+      date: string;
+      status: AttendanceStatus;
+      marked_by: string | null;
+      created_at: string;
+    }> = [];
+
     records.forEach(r => {
       const existingIdx = this.attendance.findIndex(a => a.student_id === r.student_id && a.date === date);
+      const rowId = existingIdx >= 0 ? this.attendance[existingIdx].id : `att-${r.student_id}-${date}`;
+      const newAtt: Attendance = {
+        id: rowId,
+        student_id: r.student_id,
+        date,
+        status: r.status,
+        marked_by: this.currentTeacher?.id || null,
+        created_at: new Date().toISOString()
+      };
+
       if (existingIdx >= 0) {
         this.attendance[existingIdx].status = r.status;
       } else {
-        this.attendance.push({
-          id: `att-${r.student_id}-${date}`,
-          student_id: r.student_id,
-          date,
-          status: r.status,
-          marked_by: this.currentTeacher?.id || null,
-          created_at: new Date().toISOString()
-        });
+        this.attendance.push(newAtt);
       }
+
+      upsertRows.push(newAtt);
     });
+
     this.notify();
+
+    if (isSupabaseConfigured && upsertRows.length > 0) {
+      try {
+        await supabase.from('attendance').upsert(upsertRows, { onConflict: 'student_id,date' });
+      } catch (err) {
+        console.warn('TeacherStore: Failed to persist attendance to Supabase:', err);
+      }
+    }
   }
 
   // --- MARKS ---
-  createExam(title: string, type: Exam['type'], totalMarks: number, date: string, sectionId: string) {
+  async createExam(title: string, type: Exam['type'], totalMarks: number, date: string, sectionId: string) {
     const newExam: Exam = {
       id: `ex-${Date.now()}`,
       section_id: sectionId,
@@ -144,53 +294,118 @@ class TeacherStore {
       created_by: this.currentTeacher?.id || null,
       created_at: new Date().toISOString()
     };
-    this.exams.push(newExam);
+    this.exams.unshift(newExam);
     this.notify();
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('exams').insert([newExam]);
+      } catch (err) {
+        console.warn('TeacherStore: Failed to insert exam in Supabase:', err);
+      }
+    }
     return newExam;
   }
 
-  saveMarks(examId: string, records: Array<{ student_id: string; obtained: number | null; absent: boolean }>) {
+  async saveMarks(examId: string, records: Array<{ student_id: string; obtained: number | null; absent: boolean }>) {
+    const upsertRows: Array<{
+      id: string;
+      exam_id: string;
+      student_id: string;
+      obtained: number | null;
+      absent: boolean;
+      updated_by: string | null;
+      updated_at: string;
+    }> = [];
+
     records.forEach(r => {
       const existingIdx = this.marks.findIndex(m => m.exam_id === examId && m.student_id === r.student_id);
+      const rowId = existingIdx >= 0 ? this.marks[existingIdx].id : `mk-${Date.now()}-${r.student_id}`;
+      const newMark: Mark = {
+        id: rowId,
+        exam_id: examId,
+        student_id: r.student_id,
+        obtained: r.obtained,
+        absent: r.absent,
+        updated_by: this.currentTeacher?.id || null,
+        updated_at: new Date().toISOString()
+      };
+
       if (existingIdx >= 0) {
         this.marks[existingIdx].obtained = r.obtained;
         this.marks[existingIdx].absent = r.absent;
         this.marks[existingIdx].updated_at = new Date().toISOString();
       } else {
-        this.marks.push({
-          id: `mk-${Date.now()}-${r.student_id}`,
-          exam_id: examId,
-          student_id: r.student_id,
-          obtained: r.obtained,
-          absent: r.absent,
-          updated_by: this.currentTeacher?.id || null,
-          updated_at: new Date().toISOString()
-        });
+        this.marks.push(newMark);
       }
+
+      upsertRows.push(newMark);
     });
+
     this.notify();
+
+    if (isSupabaseConfigured && upsertRows.length > 0) {
+      try {
+        await supabase.from('marks').upsert(upsertRows, { onConflict: 'exam_id,student_id' });
+      } catch (err) {
+        console.warn('TeacherStore: Failed to persist marks in Supabase:', err);
+      }
+    }
+  }
+
+  // --- EVENTS ---
+  async addEvent(title: string, description: string, startDate: string) {
+    const newEvent: Event = {
+      id: `ev-${Date.now()}`,
+      title,
+      description: description || null,
+      start_date: startDate,
+      end_date: null,
+      created_by: this.currentTeacher?.id || null,
+      created_at: new Date().toISOString()
+    };
+    this.events.unshift(newEvent);
+    this.notify();
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('events').insert([newEvent]);
+      } catch (err) {
+        console.warn('TeacherStore: Failed to insert event into Supabase:', err);
+      }
+    }
+    return newEvent;
   }
 
   // --- SPORTS REGISTRATION ---
-  registerStudentForSport(gameSlotId: string, studentId: string) {
-    const exists = this.sportRegistrations.some(r => r.game_slot_id === gameSlotId && r.student_id === studentId);
+  async registerSport(slotId: string, studentId: string, details?: string) {
+    const exists = this.sportRegistrations.some(r => r.slot_id === slotId && r.student_id === studentId);
     if (exists) {
       throw new Error("Student is already registered in this sport slot.");
     }
     const newReg: SportRegistration = {
       id: `sp-reg-${Date.now()}`,
-      game_slot_id: gameSlotId,
+      slot_id: slotId,
       student_id: studentId,
+      details: details || null,
       registered_by: this.currentTeacher?.id || null,
-      registered_at: new Date().toISOString()
+      created_at: new Date().toISOString()
     };
     this.sportRegistrations.push(newReg);
     this.notify();
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('sport_registrations').insert([newReg]);
+      } catch (err) {
+        console.warn('TeacherStore: Failed to insert sport registration into Supabase:', err);
+      }
+    }
     return newReg;
   }
 
-  // --- TEACHER PROFILE EDIT (RPC simulation) ---
-  updateProfile(updates: { phone?: string; address?: string; qualification?: string }) {
+  // --- TEACHER PROFILE EDIT ---
+  async updateOwnProfile(updates: { phone?: string; address?: string; qualification?: string }) {
     if (!this.currentTeacher) return;
     this.currentTeacher = {
       ...this.currentTeacher,
@@ -199,6 +414,21 @@ class TeacherStore {
       qualification: updates.qualification !== undefined ? updates.qualification : this.currentTeacher.qualification
     };
     this.notify();
+
+    if (isSupabaseConfigured && this.currentTeacher.id) {
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            phone: this.currentTeacher.phone,
+            address: this.currentTeacher.address,
+            qualification: this.currentTeacher.qualification
+          })
+          .eq('id', this.currentTeacher.id);
+      } catch (err) {
+        console.warn('TeacherStore: Failed to update profile in Supabase:', err);
+      }
+    }
   }
 }
 
