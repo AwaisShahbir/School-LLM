@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #F4F3F8;
+    color: #1F1B2E;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Urbanist', system-ui, sans-serif;
+    color: #1F1B2E;
+  }
+}
+
+.gradient-header {
+  background: linear-gradient(180deg, #E6DCFE 0%, #F4F3F8 100%);
+}
+
+.gradient-card-hero {
+  background: linear-gradient(135deg, #7048E8 0%, #8E6BF7 100%);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #F4F3F8;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #D5D1E8;
+  border-radius: 9999px;
+}
