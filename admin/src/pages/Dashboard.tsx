@@ -27,6 +27,7 @@ export const Dashboard: React.FC = () => {
 
   const totalStudents = schoolStore.students.filter(s => s.status === 'active').length;
   const totalTeachers = schoolStore.teachers.filter(t => t.active).length;
+  const activeSectionsCount = schoolStore.sections.length;
   
   // Attendance calculations for today (2026-11-26)
   const todayAtt = schoolStore.attendance.filter(a => a.date === '2026-11-26');
@@ -34,8 +35,7 @@ export const Dashboard: React.FC = () => {
   const absentCount = todayAtt.filter(a => a.status === 'absent').length;
   const lateCount = todayAtt.filter(a => a.status === 'late').length;
   const leaveCount = todayAtt.filter(a => a.status === 'leave').length;
-  const totalMarked = todayAtt.length || 1;
-  const attendanceRate = Math.round((presentCount / totalMarked) * 100);
+  const attendanceRate = todayAtt.length > 0 ? Math.round((presentCount / todayAtt.length) * 100) : 0;
 
   // Fee calculation for current month
   const currentMonthFees = schoolStore.fees.filter(f => f.month === '2026-11-01');
@@ -58,19 +58,21 @@ export const Dashboard: React.FC = () => {
             Academic Term 2026-2027
           </span>
           <h1 className="text-2xl md:text-3xl font-extrabold text-[#1F1B2E] mt-2">
-            Welcome back, Headmaster Office
+            Welcome back, Administrator
           </h1>
           <p className="text-sm text-[#6B6880] mt-1">
-            System running normally. 15 Sections active with {totalStudents} enrolled students.
+            {totalStudents === 0 && totalTeachers === 0
+              ? 'Your school system is clean and ready. Start by adding your sections and registering your teachers.'
+              : `System running normally. ${activeSectionsCount} Sections active with ${totalStudents} enrolled students.`}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <Link
-            to="/attendance"
+            to="/students"
             className="px-5 py-2.5 bg-[#7048E8] text-white text-sm font-semibold rounded-full shadow-md shadow-[#7048E8]/20 hover:bg-[#5E37D3] transition flex items-center gap-2"
           >
-            <span>Review Today's Attendance</span>
+            <span>Manage Students & Classes</span>
             <ArrowUpRight className="w-4 h-4" />
           </Link>
         </div>
@@ -85,7 +87,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <p className="text-xs font-semibold text-[#6B6880]">Active Students</p>
           <p className="text-2xl font-extrabold text-[#1F1B2E] mt-0.5">{totalStudents}</p>
-          <p className="text-[11px] text-[#2FA36B] font-semibold mt-1">Grades 6 to 10 (15 Sec)</p>
+          <p className="text-[11px] text-[#2FA36B] font-semibold mt-1">{activeSectionsCount} Active Sections</p>
         </div>
 
         {/* Teaching Faculty */}
@@ -95,7 +97,7 @@ export const Dashboard: React.FC = () => {
           </div>
           <p className="text-xs font-semibold text-[#6B6880]">Teaching Faculty</p>
           <p className="text-2xl font-extrabold text-[#1F1B2E] mt-0.5">{totalTeachers}</p>
-          <p className="text-[11px] text-[#6B6880] font-semibold mt-1">Subject Specialists</p>
+          <p className="text-[11px] text-[#6B6880] font-semibold mt-1">Faculty Members</p>
         </div>
 
         {/* Attendance Today */}
@@ -104,8 +106,10 @@ export const Dashboard: React.FC = () => {
             <CalendarCheck className="w-5 h-5" />
           </div>
           <p className="text-xs font-semibold text-[#6B6880]">Today's Attendance</p>
-          <p className="text-2xl font-extrabold text-[#7048E8] mt-0.5">{attendanceRate}%</p>
-          <p className="text-[11px] text-[#6B6880] font-semibold mt-1">{presentCount} Present / {absentCount} Absent</p>
+          <p className="text-2xl font-extrabold text-[#7048E8] mt-0.5">{todayAtt.length === 0 ? 'N/A' : `${attendanceRate}%`}</p>
+          <p className="text-[11px] text-[#6B6880] font-semibold mt-1">
+            {todayAtt.length === 0 ? 'No records yet today' : `${presentCount} Present / ${absentCount} Absent`}
+          </p>
         </div>
 
         {/* Pending Fee Amount */}

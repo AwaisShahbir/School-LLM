@@ -16,8 +16,8 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-  const [cnic, setCnic] = useState('3520112345671');
-  const [password, setPassword] = useState('Teach#5671');
+  const [cnic, setCnic] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

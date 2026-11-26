@@ -1,18 +1,4 @@
-import {
-  INITIAL_TEACHERS,
-  INITIAL_SECTIONS,
-  INITIAL_STUDENTS,
-  INITIAL_ATTENDANCE,
-  INITIAL_FEES,
-  INITIAL_EXAMS,
-  INITIAL_MARKS,
-  INITIAL_EVENTS,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_GAMES,
-  INITIAL_GAME_SLOTS,
-  INITIAL_SPORT_REGISTRATIONS,
-  INITIAL_EXPENSES
-} from './mockData';
+import { isSupabaseConfigured, supabase } from './supabase';
 import type { Database } from '../types/database';
 
 type Teacher = Database['public']['Tables']['profiles']['Row'];
@@ -32,19 +18,19 @@ type Expense = Database['public']['Tables']['expenses']['Row'];
 type AuditLog = Database['public']['Tables']['audit_log']['Row'];
 
 class SchoolStore {
-  teachers: Teacher[] = [...INITIAL_TEACHERS];
-  sections: Section[] = [...INITIAL_SECTIONS];
-  students: Student[] = [...INITIAL_STUDENTS];
-  attendance: Attendance[] = [...INITIAL_ATTENDANCE];
-  fees: FeePayment[] = [...INITIAL_FEES];
-  exams: Exam[] = [...INITIAL_EXAMS];
-  marks: Mark[] = [...INITIAL_MARKS];
-  events: Event[] = [...INITIAL_EVENTS];
-  notifications: Notification[] = [...INITIAL_NOTIFICATIONS];
-  games: Game[] = [...INITIAL_GAMES];
-  gameSlots: GameSlot[] = [...INITIAL_GAME_SLOTS];
-  sportRegistrations: SportRegistration[] = [...INITIAL_SPORT_REGISTRATIONS];
-  expenses: Expense[] = [...INITIAL_EXPENSES];
+  teachers: Teacher[] = [];
+  sections: Section[] = [];
+  students: Student[] = [];
+  attendance: Attendance[] = [];
+  fees: FeePayment[] = [];
+  exams: Exam[] = [];
+  marks: Mark[] = [];
+  events: Event[] = [];
+  notifications: Notification[] = [];
+  games: Game[] = [];
+  gameSlots: GameSlot[] = [];
+  sportRegistrations: SportRegistration[] = [];
+  expenses: Expense[] = [];
   auditLogs: AuditLog[] = [];
   monthlyFeeAmount: number = 3500;
   timetableEntries: TimetableEntry[] = [];
@@ -52,33 +38,69 @@ class SchoolStore {
   private listeners: Set<() => void> = new Set();
 
   constructor() {
-    this.initTimetable();
+    this.timetableEntries = [];
+    if (isSupabaseConfigured) {
+      this.loadFromSupabase();
+    }
+  }
+
+  async loadFromSupabase() {
+    if (!isSupabaseConfigured) return;
+    try {
+      const [
+        { data: profs },
+        { data: secs },
+        { data: stus },
+        { data: atts },
+        { data: fees },
+        { data: exms },
+        { data: mrks },
+        { data: evts },
+        { data: notifs },
+        { data: gms },
+        { data: slots },
+        { data: spRegs },
+        { data: exps },
+        { data: audits }
+      ] = await Promise.all([
+        supabase.from('profiles').select('*').eq('role', 'teacher'),
+        supabase.from('sections').select('*').order('grade').order('name'),
+        supabase.from('students').select('*').order('roll_no'),
+        supabase.from('attendance').select('*'),
+        supabase.from('fee_payments').select('*'),
+        supabase.from('exams').select('*'),
+        supabase.from('marks').select('*'),
+        supabase.from('events').select('*'),
+        supabase.from('notifications').select('*'),
+        supabase.from('games').select('*'),
+        supabase.from('game_slots').select('*'),
+        supabase.from('sport_registrations').select('*'),
+        supabase.from('expenses').select('*'),
+        supabase.from('audit_log').select('*').order('changed_at', { ascending: false }).limit(100)
+      ]);
+
+      if (profs) this.teachers = profs;
+      if (secs) this.sections = secs;
+      if (stus) this.students = stus;
+      if (atts) this.attendance = atts;
+      if (fees) this.fees = fees;
+      if (exms) this.exams = exms;
+      if (mrks) this.marks = mrks;
+      if (evts) this.events = evts;
+      if (notifs) this.notifications = notifs;
+      if (gms) this.games = gms;
+      if (slots) this.gameSlots = slots;
+      if (spRegs) this.sportRegistrations = spRegs;
+      if (exps) this.expenses = exps;
+      if (audits) this.auditLogs = audits;
+      this.notify();
+    } catch (err) {
+      console.error('Failed to load records from Supabase:', err);
+    }
   }
 
   private initTimetable() {
-    // Generate initial valid timetable entries
-    const entries: TimetableEntry[] = [];
-    const secKeys = this.sections;
-    for (let day = 1; day <= 6; day++) {
-      for (let period = 1; period <= 7; period++) {
-        const offset = (day * 3 + period * 5) % this.teachers.length;
-        for (let i = 0; i < this.teachers.length; i++) {
-          const tIdx = (offset + i) % this.teachers.length;
-          const teacher = this.teachers[tIdx];
-          const sec = secKeys[i % secKeys.length];
-          entries.push({
-            id: `tt-${sec.id}-${day}-${period}`,
-            version_id: "66666666-6666-6666-6666-000000000001",
-            section_id: sec.id,
-            day,
-            period_no: period,
-            subject: teacher.subject || "General",
-            teacher_id: teacher.id
-          });
-        }
-      }
-    }
-    this.timetableEntries = entries;
+    this.timetableEntries = [];
   }
 
   subscribe(listener: () => void) {
@@ -103,6 +125,38 @@ class SchoolStore {
       changed_by: "11111111-1111-1111-1111-111111111111",
       changed_at: new Date().toISOString()
     });
+  }
+
+  // --- SECTIONS ---
+  addSection(grade: number, name: string, classTeacherId: string | null = null) {
+    const exists = this.sections.some(s => s.grade === grade && s.name.toUpperCase() === name.toUpperCase());
+    if (exists) {
+      throw new Error(`Section Grade ${grade}-${name} already exists.`);
+    }
+    const id = `sec-${Date.now()}`;
+    const newSection: Section = {
+      id,
+      grade,
+      name: name.toUpperCase(),
+      class_teacher_id: classTeacherId
+    };
+    this.sections.push(newSection);
+    this.notify();
+    return newSection;
+  }
+
+  updateSection(id: string, updates: Partial<Section>) {
+    this.sections = this.sections.map(s => s.id === id ? { ...s, ...updates } : s);
+    this.notify();
+  }
+
+  deleteSection(id: string) {
+    const hasStudents = this.students.some(s => s.section_id === id && s.status === 'active');
+    if (hasStudents) {
+      throw new Error("Cannot delete a section with enrolled active students.");
+    }
+    this.sections = this.sections.filter(s => s.id !== id);
+    this.notify();
   }
 
   // --- TEACHERS ---
@@ -135,6 +189,10 @@ class SchoolStore {
 
   // --- STUDENTS ---
   addStudent(data: Omit<Student, 'id' | 'created_at'>) {
+    const activeCount = this.students.filter(s => s.status === 'active').length;
+    if (activeCount >= 1000) {
+      throw new Error(`Student capacity limit reached (Maximum 1,000 active students allowed). Current active: ${activeCount}.`);
+    }
     // Check unique roll number in section
     const exists = this.students.some(s => s.section_id === data.section_id && s.roll_no === data.roll_no && s.status === 'active');
     if (exists) {
@@ -177,6 +235,10 @@ class SchoolStore {
     dob?: string;
     phone1?: string;
   }>) {
+    const activeCount = this.students.filter(s => s.status === 'active').length;
+    if (activeCount + imported.length > 1000) {
+      throw new Error(`Cannot import ${imported.length} students. School database limit is 1,000 active students (Current active: ${activeCount}, Available capacity: ${1000 - activeCount}).`);
+    }
     let successCount = 0;
     const errors: string[] = [];
 

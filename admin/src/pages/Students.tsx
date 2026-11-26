@@ -35,8 +35,15 @@ export const Students: React.FC = () => {
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showAddSectionModal, setShowAddSectionModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [markLeftConfirm, setMarkLeftConfirm] = useState<Student | null>(null);
+
+  // New Section State
+  const [newSecGrade, setNewSecGrade] = useState<number>(6);
+  const [newSecName, setNewSecName] = useState<string>('A');
+  const [newSecTeacher, setNewSecTeacher] = useState<string>('');
+  const [secModalError, setSecModalError] = useState<string | null>(null);
 
   // Add/Edit Form State
   const [rollNo, setRollNo] = useState<number>(1);
@@ -78,6 +85,24 @@ export const Students: React.FC = () => {
     // Otherwise filter by active grade & section
     return student.section_id === currentSection?.id;
   }).sort((a, b) => a.roll_no - b.roll_no);
+
+  const availableGrades = Array.from(new Set(schoolStore.sections.map(s => s.grade))).sort((a, b) => a - b);
+  const currentGrade = availableGrades.includes(selectedGrade) ? selectedGrade : (availableGrades[0] ?? 6);
+  const availableSections = schoolStore.sections.filter(s => s.grade === currentGrade).map(s => s.name);
+
+  const handleCreateSection = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSecModalError(null);
+    try {
+      schoolStore.addSection(newSecGrade, newSecName.trim(), newSecTeacher || null);
+      setSelectedGrade(newSecGrade);
+      setSelectedSection(newSecName.trim().toUpperCase());
+      setShowAddSectionModal(false);
+      setNewSecName('A');
+    } catch (err: any) {
+      setSecModalError(err.message || 'Error creating section');
+    }
+  };
 
   const handleOpenAdd = () => {
     // Find next available roll number in section
@@ -208,14 +233,31 @@ export const Students: React.FC = () => {
     reader.readAsBinaryString(file);
   };
 
+  const totalActiveStudents = schoolStore.students.filter(s => s.status === 'active').length;
+  const capacityPercent = Math.min(100, Math.round((totalActiveStudents / 1000) * 100));
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-[#1F1B2E]">Student Management</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-extrabold text-[#1F1B2E]">Student Management</h1>
+            <div className="flex items-center gap-2.5 bg-white px-3 py-1.5 rounded-full border border-[#EEE9FD] shadow-xs">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold text-[#6B6880] uppercase tracking-wider">Capacity</span>
+                <span className="text-xs font-bold text-[#1F1B2E]">{totalActiveStudents} / 1,000</span>
+              </div>
+              <div className="w-14 h-2 bg-[#F4F3F8] rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${totalActiveStudents > 900 ? 'bg-[#F27D8D]' : 'bg-[#7048E8]'}`}
+                  style={{ width: `${capacityPercent}%` }}
+                />
+              </div>
+            </div>
+          </div>
           <p className="text-xs text-[#6B6880] mt-0.5">
-            Enrolment registers for Grades 6 through 10, sections A, B & C.
+            Enrolment registers for Grades 6 through 10 (Restricted to maximum 1,000 active students).
           </p>
         </div>
 
@@ -249,46 +291,63 @@ export const Students: React.FC = () => {
       {/* Class & Section Navigation Tabs */}
       <div className="bg-white p-4 rounded-[22px] shadow-soft border border-white space-y-3">
         {/* Grade Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <span className="text-xs font-bold text-[#6B6880] uppercase tracking-wider mr-2">Class:</span>
-          {GRADES.map(grade => (
-            <button
-              key={grade}
-              onClick={() => {
-                setSelectedGrade(grade);
-                setSearchTerm('');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
-                selectedGrade === grade && !searchTerm
-                  ? 'bg-[#7048E8] text-white shadow-sm'
-                  : 'bg-[#F4F3F8] text-[#6B6880] hover:text-[#1F1B2E]'
-              }`}
-            >
-              Grade {grade}
-            </button>
-          ))}
+        <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#6B6880] uppercase tracking-wider mr-2">Class:</span>
+            {availableGrades.length > 0 ? (
+              availableGrades.map(grade => (
+                <button
+                  key={grade}
+                  onClick={() => {
+                    setSelectedGrade(grade);
+                    setSearchTerm('');
+                  }}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
+                    currentGrade === grade && !searchTerm
+                      ? 'bg-[#7048E8] text-white shadow-sm'
+                      : 'bg-[#F4F3F8] text-[#6B6880] hover:text-[#1F1B2E]'
+                  }`}
+                >
+                  Grade {grade}
+                </button>
+              ))
+            ) : (
+              <span className="text-xs text-[#6B6880] italic">No classes yet</span>
+            )}
+          </div>
+
+          <button
+            onClick={() => setShowAddSectionModal(true)}
+            className="px-3 py-1.5 bg-[#EEE9FD] hover:bg-[#E0D7FA] text-[#7048E8] text-xs font-bold rounded-full flex items-center gap-1 transition shrink-0"
+          >
+            <span>+ Add Class / Section</span>
+          </button>
         </div>
 
         {/* Section Pills & Search */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#F4F3F8]">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-[#6B6880] uppercase tracking-wider mr-2">Section:</span>
-            {SECTIONS.map(sec => (
-              <button
-                key={sec}
-                onClick={() => {
-                  setSelectedSection(sec);
-                  setSearchTerm('');
-                }}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
-                  selectedSection === sec && !searchTerm
-                    ? 'bg-[#EEE9FD] text-[#7048E8]'
-                    : 'bg-[#F4F3F8] text-[#6B6880] hover:text-[#1F1B2E]'
-                }`}
-              >
-                Section {sec}
-              </button>
-            ))}
+            {availableSections.length > 0 ? (
+              availableSections.map(sec => (
+                <button
+                  key={sec}
+                  onClick={() => {
+                    setSelectedSection(sec);
+                    setSearchTerm('');
+                  }}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
+                    selectedSection === sec && !searchTerm
+                      ? 'bg-[#EEE9FD] text-[#7048E8]'
+                      : 'bg-[#F4F3F8] text-[#6B6880] hover:text-[#1F1B2E]'
+                  }`}
+                >
+                  Section {sec}
+                </button>
+              ))
+            ) : (
+              <span className="text-xs text-[#6B6880] italic">No sections in this class</span>
+            )}
           </div>
 
           <div className="relative w-full sm:w-72">
@@ -625,6 +684,84 @@ export const Students: React.FC = () => {
                 Close & Return
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Section Modal */}
+      {showAddSectionModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[24px] shadow-2xl p-6 sm:p-8">
+            <div className="flex items-center justify-between pb-4 border-b border-[#F4F3F8]">
+              <h3 className="text-lg font-bold text-[#1F1B2E]">Add Class Section</h3>
+              <button onClick={() => setShowAddSectionModal(false)} className="p-1.5 text-[#6B6880]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {secModalError && (
+              <div className="mt-4 p-3 rounded-xl bg-[#F27D8D]/10 text-[#F27D8D] text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{secModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateSection} className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-[#6B6880] block mb-1">Class / Grade (1 to 12)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={12}
+                  value={newSecGrade}
+                  onChange={(e) => setNewSecGrade(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#E9E6F2] focus:border-[#7048E8] outline-none text-xs text-[#1F1B2E]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#6B6880] block mb-1">Section Name (e.g. A, B, Green, etc.)</label>
+                <input
+                  type="text"
+                  value={newSecName}
+                  onChange={(e) => setNewSecName(e.target.value)}
+                  placeholder="A"
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#E9E6F2] focus:border-[#7048E8] outline-none text-xs text-[#1F1B2E]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#6B6880] block mb-1">Class Teacher (Optional)</label>
+                <select
+                  value={newSecTeacher}
+                  onChange={(e) => setNewSecTeacher(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#E9E6F2] focus:border-[#7048E8] outline-none text-xs text-[#1F1B2E]"
+                >
+                  <option value="">No Class Teacher assigned yet</option>
+                  {schoolStore.teachers.filter(t => t.active).map(t => (
+                    <option key={t.id} value={t.id}>{t.full_name} ({t.subject})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAddSectionModal(false)}
+                  className="px-5 py-2.5 rounded-full border border-[#E9E6F2] text-xs font-bold text-[#6B6880]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-[#7048E8] hover:bg-[#5E37D3] text-white text-xs font-bold rounded-full transition"
+                >
+                  Create Section
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

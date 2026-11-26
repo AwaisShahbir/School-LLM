@@ -29,7 +29,7 @@ type SubScreenType = 'Attendance' | 'Marks' | 'Timetable' | 'Sports' | null;
 export default function App() {
   const [, setTick] = useState(0);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // Initialized with demo logged-in teacher
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Clean initial login state
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('Home');
   const [subScreen, setSubScreen] = useState<SubScreenType>(null);

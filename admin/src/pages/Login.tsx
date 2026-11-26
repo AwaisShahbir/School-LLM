@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { School, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const [email, setEmail] = useState('admin@school.edu.pk');
-  const [password, setPassword] = useState('Admin@1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
